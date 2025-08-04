@@ -524,9 +524,16 @@ const MonthlyView: React.FC<{
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
   const [expandedDayItems, setExpandedDayItems] = useState<SchedulerItem[]>([]);
   
+  // Type for filters
+  type FilterState = {
+    colors: string[];
+    priorities: number[];
+    recurrenceTypes: string[];
+  };
+
   // State for filters - with localStorage persistence
   const [showFilters, setShowFilters] = useState(false);
-  const [activeFilters, setActiveFilters] = useState(() => {
+  const [activeFilters, setActiveFilters] = useState<FilterState>(() => {
     // Load saved filters from localStorage
     const savedFilters = localStorage.getItem(`monthlyViewFilters_${scheduler?.id}`);
     if (savedFilters) {
@@ -537,9 +544,9 @@ const MonthlyView: React.FC<{
       }
     }
     return {
-      colors: [] as string[],
-      priorities: [] as number[],
-      recurrenceTypes: [] as string[]
+      colors: [],
+      priorities: [],
+      recurrenceTypes: []
     };
   });
 
@@ -592,7 +599,6 @@ const MonthlyView: React.FC<{
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
   
   // Filter options
-  const categories = ['work', 'personal', 'health', 'education', 'family', 'creative', 'business'];
   const colors = ['blue', 'green', 'red', 'yellow', 'purple', 'pink', 'indigo', 'gray'];
   const priorities = [
     { value: 1, label: 'High', color: 'red' },
@@ -697,9 +703,9 @@ const MonthlyView: React.FC<{
             <Filter className="w-4 h-4" />
             <span className="font-medium">Filters</span>
             <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-            {Object.values(activeFilters).some(arr => arr.length > 0) && (
+            {Object.values(activeFilters).some((arr: any[]) => arr.length > 0) && (
               <span className="ml-1 px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
-                {Object.values(activeFilters).reduce((acc, arr) => acc + arr.length, 0)}
+                {Object.values(activeFilters).reduce((acc: number, arr: any[]) => acc + arr.length, 0)}
               </span>
             )}
           </button>
@@ -711,7 +717,7 @@ const MonthlyView: React.FC<{
         <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
           <div className="mb-3">
             <p className="text-sm text-gray-600">
-              Filter items in the calendar view. {Object.values(activeFilters).reduce((acc, arr) => acc + arr.length, 0)} filter{Object.values(activeFilters).reduce((acc, arr) => acc + arr.length, 0) !== 1 ? 's' : ''} active.
+              Filter items in the calendar view. {Object.values(activeFilters).reduce((acc: number, arr: any[]) => acc + arr.length, 0)} filter{Object.values(activeFilters).reduce((acc: number, arr: any[]) => acc + arr.length, 0) !== 1 ? 's' : ''} active.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -833,7 +839,7 @@ const MonthlyView: React.FC<{
                   recurrenceTypes: []
                 })}
                 className="w-full px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                disabled={Object.values(activeFilters).every(arr => arr.length === 0)}
+                disabled={Object.values(activeFilters).every((arr: any[]) => arr.length === 0)}
               >
                 Clear All Filters
               </button>
