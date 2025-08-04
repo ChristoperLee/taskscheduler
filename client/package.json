@@ -33,7 +33,7 @@
     "tailwindcss": "^3.3.5",
     "typescript": "^5.8.3"
   },
-  "homepage": "https://yourusername.github.io/taskscheduler",
+  "homepage": "https://christoperlee.github.io/taskscheduler",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
