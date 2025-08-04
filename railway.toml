@@ -1,2 +1,2 @@
 [deploy]
-startCommand = "cd server && npm start"
+startCommand = "cd server && node -r dotenv/config src/index.js"
