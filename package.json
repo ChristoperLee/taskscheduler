@@ -11,7 +11,9 @@
     "setup-db": "cd server && npm run setup-db",
     "seed": "cd server && npm run seed",
     "backup-db": "./backup-database.sh",
-    "restore-db": "./restore-database.sh"
+    "restore-db": "./restore-database.sh",
+    "start": "cd server && npm start",
+    "install": "cd server && npm install"
   },
   "keywords": ["scheduler", "tasks", "productivity", "calendar"],
   "author": "TaskScheduler Team",
