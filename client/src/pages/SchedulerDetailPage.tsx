@@ -1,0 +1,706 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { RootState, useAppDispatch } from '../store';
+import { fetchSchedulerById } from '../store/slices/schedulerSlice';
+import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid, Clock, Edit } from 'lucide-react';
+import LoadingSpinner from '../components/LoadingSpinner';
+import RecurrenceDisplay from '../components/RecurrenceDisplay';
+import { SchedulerItem } from '../types';
+
+// Helper function to get color classes with explicit class mapping
+const getColorClasses = (color?: string) => {
+  const colorToUse = color || 'blue';
+  
+  // Explicit mapping to ensure Tailwind includes these classes
+  switch (colorToUse) {
+    case 'blue':
+      return { bgClass: 'bg-blue-100', textClass: 'text-blue-800' };
+    case 'green':
+      return { bgClass: 'bg-green-100', textClass: 'text-green-800' };
+    case 'red':
+      return { bgClass: 'bg-red-100', textClass: 'text-red-800' };
+    case 'yellow':
+      return { bgClass: 'bg-yellow-100', textClass: 'text-yellow-800' };
+    case 'purple':
+      return { bgClass: 'bg-purple-100', textClass: 'text-purple-800' };
+    case 'pink':
+      return { bgClass: 'bg-pink-100', textClass: 'text-pink-800' };
+    case 'indigo':
+      return { bgClass: 'bg-indigo-100', textClass: 'text-indigo-800' };
+    case 'gray':
+      return { bgClass: 'bg-gray-100', textClass: 'text-gray-800' };
+    default:
+      return { bgClass: 'bg-blue-100', textClass: 'text-blue-800' };
+  }
+};
+
+const SchedulerDetailPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const dispatch = useAppDispatch();
+  const { currentScheduler, loading } = useSelector((state: RootState) => state.schedulers);
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'list'>('daily');
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  // Helper function to format time
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  // Helper function to check if a recurring item occurs on a specific date
+  const itemOccursOnDate = (item: SchedulerItem, targetDate: Date): boolean => {
+    if (!item.recurrence_type || item.recurrence_type === 'one-time') {
+      // One-time events: check if it matches the specific date
+      if (item.start_date) {
+        let itemDate: Date;
+        if (typeof item.start_date === 'string' && item.start_date.includes('-') && (item.start_date.length === 10 || item.start_date.includes('T'))) {
+          // Handle both YYYY-MM-DD and ISO timestamp formats to avoid timezone issues
+          const dateOnly = item.start_date.split('T')[0]; // Extract date part from ISO timestamp
+          const [year, month, day] = dateOnly.split('-').map(Number);
+          itemDate = new Date(year, month - 1, day);
+        } else {
+          itemDate = new Date(item.start_date);
+        }
+        return itemDate.toDateString() === targetDate.toDateString();
+      }
+      return false;
+    }
+
+    // For recurring items, check if target date matches the day of week (except for daily)
+    if (item.recurrence_type !== 'daily') {
+      // Convert JavaScript day (0=Sunday, 1=Monday, ..., 6=Saturday) to our system (1=Monday, ..., 7=Sunday)
+      const jsDay = targetDate.getDay();
+      const targetDayOfWeek = jsDay === 0 ? 7 : jsDay; // Sunday (0) becomes 7, others stay same
+      if (item.day_of_week !== targetDayOfWeek) {
+        return false;
+      }
+    }
+
+    // Get the start date for the recurring item 
+    const startDateStr = item.item_start_date || item.start_date;
+    if (!startDateStr) return false;
+    
+    // Parse date correctly to avoid timezone issues
+    let startDate: Date;
+    if (typeof startDateStr === 'string') {
+      if (startDateStr.includes('-') && (startDateStr.length === 10 || startDateStr.includes('T'))) {
+        // Handle both YYYY-MM-DD and ISO timestamp formats to avoid timezone issues
+        const dateOnly = startDateStr.split('T')[0]; // Extract date part from ISO timestamp
+        const [year, month, day] = dateOnly.split('-').map(Number);
+        startDate = new Date(year, month - 1, day);
+      } else {
+        startDate = new Date(startDateStr);
+      }
+    } else {
+      startDate = new Date(startDateStr);
+    }
+    
+    // Normalize both dates to same timezone for consistent comparison
+    // Create dates preserving the intended date without timezone shifts
+    const normalizeDate = (date: Date): Date => {
+      // Use the date components to create a local date without timezone conversion
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      return new Date(year, month, day);
+    };
+    
+    const normalizedStartDate = normalizeDate(startDate);
+    const normalizedTargetDate = normalizeDate(targetDate);
+    
+    // Check if target date is before start date
+    if (normalizedTargetDate < normalizedStartDate) {
+      return false;
+    }
+
+    // Check if target date is after end date (if specified)
+    if (item.item_end_date) {
+      let endDate: Date;
+      if (typeof item.item_end_date === 'string' && item.item_end_date.includes('-') && (item.item_end_date.length === 10 || item.item_end_date.includes('T'))) {
+        // Handle both YYYY-MM-DD and ISO timestamp formats to avoid timezone issues
+        const dateOnly = item.item_end_date.split('T')[0]; // Extract date part from ISO timestamp
+        const [year, month, day] = dateOnly.split('-').map(Number);
+        endDate = new Date(year, month - 1, day);
+      } else {
+        endDate = new Date(item.item_end_date);
+      }
+      const normalizedEndDate = normalizeDate(endDate);
+      if (normalizedTargetDate > normalizedEndDate) {
+        return false;
+      }
+    }
+
+    // For weekly/bi-weekly items, find the actual first occurrence on the correct day of week
+    let effectiveStartDate = normalizedStartDate;
+    
+    if (item.recurrence_type === 'weekly' || item.recurrence_type === 'bi-weekly') {
+      // Convert JavaScript day to our system (Sunday 0 -> 7, others stay same)
+      const jsStartDay = normalizedStartDate.getDay();
+      const startDayOfWeek = jsStartDay === 0 ? 7 : jsStartDay;
+      const itemDayOfWeek = item.day_of_week || 7;
+      
+      if (startDayOfWeek !== itemDayOfWeek) {
+        // Adjust start date to the first occurrence of the correct day of week
+        let daysToAdd = itemDayOfWeek - startDayOfWeek;
+        if (daysToAdd < 0) daysToAdd += 7; // Handle week wrapping
+        
+        effectiveStartDate = new Date(normalizedStartDate.getFullYear(), normalizedStartDate.getMonth(), normalizedStartDate.getDate() + daysToAdd);
+      }
+    }
+    
+    // Calculate if this occurrence should happen based on recurrence type
+    // Use date arithmetic to avoid timezone issues in millisecond calculations
+    const daysDiff = Math.floor((normalizedTargetDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    switch (item.recurrence_type) {
+      case 'daily':
+        return daysDiff >= 0;
+      case 'weekly':
+        return daysDiff >= 0 && daysDiff % 7 === 0;
+      case 'bi-weekly':
+        return daysDiff >= 0 && daysDiff % 14 === 0;
+      case 'monthly':
+        // For monthly, check if it's the same day of month and at least one month has passed
+        const monthsDiffMonthly = (normalizedTargetDate.getFullYear() - normalizedStartDate.getFullYear()) * 12 + (normalizedTargetDate.getMonth() - normalizedStartDate.getMonth());
+        return monthsDiffMonthly >= 0 && normalizedTargetDate.getDate() === normalizedStartDate.getDate();
+      case 'quarterly':
+        // For quarterly, check if it's the same day and month is 3 months apart
+        const monthsDiff = (normalizedTargetDate.getFullYear() - normalizedStartDate.getFullYear()) * 12 + (normalizedTargetDate.getMonth() - normalizedStartDate.getMonth());
+        return monthsDiff >= 0 && monthsDiff % 3 === 0 && normalizedTargetDate.getDate() === normalizedStartDate.getDate();
+      default:
+        return false;
+    }
+  };
+
+  // Helper function to get items for a specific day (for day-of-week based views)
+  const getItemsForDay = (dayOfWeek: number) => {
+    return currentScheduler?.items?.filter(item => 
+      item.day_of_week === dayOfWeek || item.recurrence_type === 'daily'
+    ) || [];
+  };
+
+  // Helper function to get items for a specific date (for monthly view)
+  const getItemsForDate = (date: Date) => {
+    if (!currentScheduler?.items) {
+      return [];
+    }
+    
+    const items = currentScheduler.items.filter(item => itemOccursOnDate(item, date));
+    
+    
+    return items;
+  };
+
+  // Helper function to parse time for sorting
+  const parseTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
+  useEffect(() => {
+    if (id) {
+      dispatch(fetchSchedulerById(id));
+    }
+  }, [dispatch, id]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!currentScheduler) {
+    return (
+      <div className="max-w-4xl mx-auto text-center py-12">
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">
+          Scheduler Not Found
+        </h1>
+        <p className="text-gray-600 mb-6">
+          The scheduler you're looking for doesn't exist or has been removed.
+        </p>
+        <Link to="/" className="btn btn-primary">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Home
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <Link to="/" className="inline-flex items-center text-gray-600 hover:text-primary-600 mb-4">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Home
+        </Link>
+        
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                {currentScheduler.title}
+              </h1>
+              <p className="text-gray-600 mb-4">
+                {currentScheduler.description}
+              </p>
+              <div className="flex items-center space-x-4 text-sm text-gray-500">
+                <div className="flex items-center space-x-1">
+                  <User className="w-4 h-4" />
+                  <span>{currentScheduler.creator_name}</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Calendar className="w-4 h-4" />
+                  <span>{new Date(currentScheduler.created_at).toLocaleDateString()}</span>
+                </div>
+                <span className={`badge badge-${currentScheduler.category === 'work' ? 'primary' : 'secondary'}`}>
+                  {currentScheduler.category}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-4 text-sm text-gray-500">
+                <div className="flex items-center space-x-1">
+                  <Eye className="w-4 h-4" />
+                  <span>{currentScheduler.usage_count}</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Heart className="w-4 h-4" />
+                  <span>{currentScheduler.like_count}</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Share2 className="w-4 h-4" />
+                  <span>{currentScheduler.share_count}</span>
+                </div>
+              </div>
+              
+              {/* Edit button - only show if user owns this scheduler */}
+              {user && currentScheduler.user_id === user.id && (
+                <Link 
+                  to={`/scheduler/${currentScheduler.id}/edit`}
+                  className="btn btn-primary text-sm"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* View Mode Tabs */}
+      <div className="bg-white rounded-lg shadow-sm mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            {[
+              { key: 'daily', label: 'Daily', icon: CalendarDays },
+              { key: 'weekly', label: 'Weekly', icon: Grid },
+              { key: 'monthly', label: 'Monthly', icon: Calendar },
+              { key: 'list', label: 'List', icon: List }
+            ].map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setViewMode(key as any)}
+                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${
+                  viewMode === key
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* View Content */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        {viewMode === 'daily' && (
+          <DailyView 
+            items={getItemsForDay(selectedDate.getDay() === 0 ? 7 : selectedDate.getDay())} 
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            formatTime={formatTime}
+            daysOfWeek={daysOfWeek}
+          />
+        )}
+        
+        {viewMode === 'weekly' && (
+          <WeeklyView 
+            scheduler={currentScheduler}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            formatTime={formatTime}
+            daysOfWeek={daysOfWeek}
+            getItemsForDay={getItemsForDay}
+          />
+        )}
+        
+        {viewMode === 'monthly' && (
+          <MonthlyView 
+            scheduler={currentScheduler}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            daysOfWeek={daysOfWeek}
+            getItemsForDay={getItemsForDay}
+            getItemsForDate={getItemsForDate}
+          />
+        )}
+        
+        {viewMode === 'list' && (
+          <ListView 
+            scheduler={currentScheduler}
+            formatTime={formatTime}
+            daysOfWeek={daysOfWeek}
+            parseTime={parseTime}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Daily View Component
+const DailyView: React.FC<{
+  items: SchedulerItem[];
+  selectedDate: Date;
+  setSelectedDate: (date: Date) => void;
+  formatTime: (time: string) => string;
+  daysOfWeek: string[];
+}> = ({ items, selectedDate, setSelectedDate, formatTime, daysOfWeek }) => {
+  const currentDay = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay(); // Convert Sunday (0) to 7
+  const sortedItems = items.sort((a, b) => {
+    const timeA = a.start_time ? a.start_time.split(':').map(Number) : [0, 0];
+    const timeB = b.start_time ? b.start_time.split(':').map(Number) : [0, 0];
+    return (timeA[0] * 60 + timeA[1]) - (timeB[0] * 60 + timeB[1]);
+  });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Daily View</h2>
+        <div className="flex items-center space-x-4">
+          <select
+            value={currentDay}
+            onChange={(e) => {
+              const newDay = parseInt(e.target.value);
+              const newDate = new Date(selectedDate);
+              const currentJsDay = newDate.getDay();
+              const currentDay = currentJsDay === 0 ? 7 : currentJsDay;
+              const diff = newDay - currentDay;
+              newDate.setDate(newDate.getDate() + diff);
+              setSelectedDate(newDate);
+            }}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            {daysOfWeek.map((day, index) => (
+              <option key={index} value={index + 1}>{day}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {sortedItems.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <CalendarDays className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <p>No activities scheduled for {daysOfWeek[currentDay - 1]}</p>
+          </div>
+        ) : (
+          sortedItems.map((item) => (
+            <div key={item.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900 mb-1">{item.title}</h3>
+                  <p className="text-gray-600 text-sm mb-3">{item.description}</p>
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <div className="flex items-center space-x-1">
+                      <Clock className="w-4 h-4" />
+                      <span>
+                        {item.start_time && formatTime(item.start_time)} - {item.end_time && formatTime(item.end_time)}
+                      </span>
+                    </div>
+                    <span className={`badge badge-${item.priority === 1 ? 'primary' : item.priority === 2 ? 'secondary' : 'tertiary'}`}>
+                      Priority {item.priority}
+                    </span>
+                    <RecurrenceDisplay recurrenceType={item.recurrence_type} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Weekly View Component  
+const WeeklyView: React.FC<{
+  scheduler: any;
+  selectedDate: Date;
+  setSelectedDate: (date: Date) => void;
+  formatTime: (time: string) => string;
+  daysOfWeek: string[];
+  getItemsForDay: (day: number) => SchedulerItem[];
+}> = ({ formatTime, daysOfWeek, getItemsForDay }) => {
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Weekly View</h2>
+      </div>
+
+      <div className="grid grid-cols-7 gap-4">
+        {daysOfWeek.map((day, index) => {
+          const dayNumber = index + 1;
+          const dayItems = getItemsForDay(dayNumber).sort((a, b) => {
+            const timeA = a.start_time ? a.start_time.split(':').map(Number) : [0, 0];
+            const timeB = b.start_time ? b.start_time.split(':').map(Number) : [0, 0];
+            return (timeA[0] * 60 + timeA[1]) - (timeB[0] * 60 + timeB[1]);
+          });
+
+          return (
+            <div key={day} className="border border-gray-200 rounded-lg p-3">
+              <h3 className="font-semibold text-gray-900 text-center mb-3 pb-2 border-b">
+                {day}
+              </h3>
+              <div className="space-y-2">
+                {dayItems.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">No activities</p>
+                ) : (
+                  dayItems.map((item) => {
+                    const colorClasses = getColorClasses(item.color);
+                    return (
+                      <div key={item.id} className={`${colorClasses.bgClass} border border-${item.color || 'blue'}-200 rounded p-2`}>
+                        <div className="font-medium text-xs text-gray-900 mb-1">{item.title}</div>
+                        <div className="text-xs text-gray-600 flex items-center mb-1">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {item.start_time && formatTime(item.start_time)}
+                        </div>
+                        <RecurrenceDisplay recurrenceType={item.recurrence_type} className="text-xs" />
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// Monthly View Component
+const MonthlyView: React.FC<{
+  scheduler: any;
+  selectedDate: Date;
+  setSelectedDate: (date: Date) => void;
+  daysOfWeek: string[];
+  getItemsForDay: (day: number) => SchedulerItem[];
+  getItemsForDate: (date: Date) => SchedulerItem[];
+}> = ({ selectedDate, setSelectedDate, daysOfWeek, getItemsForDate }) => {
+  const year = selectedDate.getFullYear();
+  const month = selectedDate.getMonth();
+  
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+  const daysInMonth = lastDayOfMonth.getDate();
+  const startingDayOfWeek = firstDayOfMonth.getDay() === 0 ? 7 : firstDayOfMonth.getDay(); // Convert Sunday (0) to 7
+
+  const weeks = [];
+  let currentWeek = [];
+  
+  // Add empty cells for days before the first day of the month
+  for (let i = 1; i < startingDayOfWeek; i++) {
+    currentWeek.push(null);
+  }
+  
+  // Add all days of the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    if (currentWeek.length === 7) {
+      weeks.push(currentWeek);
+      currentWeek = [];
+    }
+    currentWeek.push(day);
+  }
+  
+  // Add empty cells for remaining days
+  while (currentWeek.length < 7) {
+    currentWeek.push(null);
+  }
+  weeks.push(currentWeek);
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Monthly View</h2>
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={() => setSelectedDate(new Date(year, month - 1, 1))}
+            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+          >
+            Previous
+          </button>
+          <span className="font-medium">{monthNames[month]} {year}</span>
+          <button
+            onClick={() => setSelectedDate(new Date(year, month + 1, 1))}
+            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        {/* Days of week header */}
+        <div className="grid grid-cols-7 bg-gray-50">
+          {daysOfWeek.map((day) => (
+            <div key={day} className="p-3 text-center font-medium text-gray-700 border-r border-gray-200 last:border-r-0">
+              {day.slice(0, 3)}
+            </div>
+          ))}
+        </div>
+        
+        {/* Calendar weeks */}
+        {weeks.map((week, weekIndex) => (
+          <div key={weekIndex} className="grid grid-cols-7 border-t border-gray-200">
+            {week.map((day, dayIndex) => {
+              const currentDate = day ? new Date(year, month, day) : null;
+              const dayItems = currentDate ? getItemsForDate(currentDate) : [];
+              
+              
+              return (
+                <div key={dayIndex} className="min-h-24 p-2 border-r border-gray-200 last:border-r-0">
+                  {day && (
+                    <>
+                      <div className="text-sm font-medium text-gray-900 mb-1">{day}</div>
+                      <div className="space-y-1">
+                        {dayItems.slice(0, 2).map((item) => {
+                          const colorClasses = getColorClasses(item.color);
+                          const finalClassName = `text-xs ${colorClasses.bgClass} ${colorClasses.textClass} px-1 py-0.5 rounded truncate`;
+                          return (
+                            <div key={item.id} className={finalClassName}>
+                              {item.title}
+                            </div>
+                          );
+                        })}
+                        {dayItems.length > 2 && (
+                          <div className="text-xs text-gray-500">+{dayItems.length - 2} more</div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// List View Component
+const ListView: React.FC<{
+  scheduler: any;
+  formatTime: (time: string) => string;
+  daysOfWeek: string[];
+  parseTime: (time: string) => number;
+}> = ({ scheduler, formatTime, daysOfWeek, parseTime }) => {
+  const allItems = scheduler?.items || [];
+  const groupedItems = daysOfWeek.reduce((acc, day, index) => {
+    const dayNumber = index + 1;
+    const dayItems = allItems.filter((item: SchedulerItem) => {
+      // Include daily items on every day
+      if (item.recurrence_type === 'daily') return true;
+      // Include items that match the specific day of week
+      if (item.day_of_week === dayNumber) return true;
+      // Include one-time items that match this day (for completeness)
+      if (item.recurrence_type === 'one-time' && item.start_date) {
+        const itemDate = new Date(item.start_date);
+        const jsItemDay = itemDate.getDay();
+        const itemDay = jsItemDay === 0 ? 7 : jsItemDay; // Convert Sunday (0) to 7
+        return itemDay === dayNumber;
+      }
+      return false;
+    })
+      .sort((a: SchedulerItem, b: SchedulerItem) => {
+        const timeA = a.start_time ? parseTime(a.start_time) : 0;
+        const timeB = b.start_time ? parseTime(b.start_time) : 0;
+        return timeA - timeB;
+      });
+    acc[day] = dayItems;
+    return acc;
+  }, {} as Record<string, SchedulerItem[]>);
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-gray-900 mb-6">List View</h2>
+      
+      <div className="space-y-6">
+        {daysOfWeek.map((day) => {
+          const items = groupedItems[day];
+          return (
+            <div key={day} className="border border-gray-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <CalendarDays className="w-5 h-5 mr-2" />
+                {day}
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  ({items.length} {items.length === 1 ? 'activity' : 'activities'})
+                </span>
+              </h3>
+              
+              {items.length === 0 ? (
+                <p className="text-gray-500 italic">No activities scheduled</p>
+              ) : (
+                <div className="space-y-3">
+                  {items.map((item) => (
+                    <div key={item.id} className="flex items-start space-x-4 p-3 bg-gray-50 rounded">
+                      <div className="flex-shrink-0">
+                        <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900">{item.title}</h4>
+                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                          <span>
+                            {item.start_time && formatTime(item.start_time)} - {item.end_time && formatTime(item.end_time)}
+                          </span>
+                          <span className={`badge badge-${item.priority === 1 ? 'primary' : item.priority === 2 ? 'secondary' : 'tertiary'}`}>
+                            Priority {item.priority}
+                          </span>
+                          <RecurrenceDisplay recurrenceType={item.recurrence_type} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default SchedulerDetailPage; 

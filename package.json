@@ -1,0 +1,23 @@
+{
+  "name": "taskscheduler",
+  "version": "1.0.0",
+  "description": "A web-based task scheduler application with popularity tracking",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm start",
+    "build": "cd client && npm run build",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "setup-db": "cd server && npm run setup-db",
+    "seed": "cd server && npm run seed",
+    "backup-db": "./backup-database.sh",
+    "restore-db": "./restore-database.sh"
+  },
+  "keywords": ["scheduler", "tasks", "productivity", "calendar"],
+  "author": "TaskScheduler Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+} 
