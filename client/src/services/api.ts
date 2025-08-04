@@ -1,7 +1,9 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { ApiResponse } from '../types';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+// Use full URL in production, proxy in development
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api');
 
 class ApiService {
   private api: AxiosInstance;
