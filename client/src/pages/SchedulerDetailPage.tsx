@@ -393,8 +393,50 @@ const DailyView: React.FC<{
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Daily View</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Daily View</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            {selectedDate.toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </p>
+        </div>
         <div className="flex items-center space-x-4">
+          {/* Navigation buttons */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                const newDate = new Date(selectedDate);
+                newDate.setDate(newDate.getDate() - 1);
+                setSelectedDate(newDate);
+              }}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Previous day"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setSelectedDate(new Date())}
+              className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-md transition-colors"
+              title="Go to today"
+            >
+              Today
+            </button>
+            <button
+              onClick={() => {
+                const newDate = new Date(selectedDate);
+                newDate.setDate(newDate.getDate() + 1);
+                setSelectedDate(newDate);
+              }}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Next day"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
           <select
             value={currentDay}
             onChange={(e) => {
@@ -458,16 +500,68 @@ const WeeklyView: React.FC<{
   formatTime: (time: string) => string;
   daysOfWeek: string[];
   getItemsForDay: (day: number) => SchedulerItem[];
-}> = ({ formatTime, daysOfWeek, getItemsForDay }) => {
+}> = ({ selectedDate, setSelectedDate, formatTime, daysOfWeek, getItemsForDay }) => {
+  // Calculate week start and end dates
+  const getWeekDates = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday start
+    const monday = new Date(d.setDate(diff));
+    const sunday = new Date(d.setDate(diff + 6));
+    return { monday, sunday };
+  };
+
+  const { monday, sunday } = getWeekDates(selectedDate);
+
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Weekly View</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Weekly View</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            {monday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - {sunday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {
+              const newDate = new Date(selectedDate);
+              newDate.setDate(newDate.getDate() - 7);
+              setSelectedDate(newDate);
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Previous week"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setSelectedDate(new Date())}
+            className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-md transition-colors"
+            title="Go to current week"
+          >
+            This Week
+          </button>
+          <button
+            onClick={() => {
+              const newDate = new Date(selectedDate);
+              newDate.setDate(newDate.getDate() + 7);
+              setSelectedDate(newDate);
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Next week"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-7 gap-4">
         {daysOfWeek.map((day, index) => {
           const dayNumber = index + 1;
+          const currentDayDate = new Date(monday);
+          currentDayDate.setDate(monday.getDate() + index);
+          const isToday = currentDayDate.toDateString() === new Date().toDateString();
+          
           const dayItems = getItemsForDay(dayNumber).sort((a, b) => {
             const timeA = a.start_time ? a.start_time.split(':').map(Number) : [0, 0];
             const timeB = b.start_time ? b.start_time.split(':').map(Number) : [0, 0];
@@ -475,9 +569,11 @@ const WeeklyView: React.FC<{
           });
 
           return (
-            <div key={day} className="border border-gray-200 rounded-lg p-3">
-              <h3 className="font-semibold text-gray-900 text-center mb-3 pb-2 border-b">
-                {day}
+            <div key={day} className={`border rounded-lg p-3 ${isToday ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}>
+              <h3 className="text-center mb-3 pb-2 border-b">
+                <div className="font-semibold text-gray-900">{day}</div>
+                <div className="text-xs text-gray-600">{currentDayDate.getDate()}</div>
+                {isToday && <div className="text-xs text-blue-600 font-medium mt-1">Today</div>}
               </h3>
               <div className="space-y-2">
                 {dayItems.length === 0 ? (
