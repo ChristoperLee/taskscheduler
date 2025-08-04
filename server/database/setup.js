@@ -34,7 +34,7 @@ const createTables = async () => {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
-    console.log('✅ Schedulers table created');/Users/chrislee/Project/TaskScheduler/server/database/seed.js
+    console.log('✅ Schedulers table created');
 
     // Create scheduler_items table
     await query(`
