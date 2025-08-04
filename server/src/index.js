@@ -16,6 +16,7 @@ const analyticsRoutes = require('./routes/analytics');
 const adminRoutes = require('./routes/admin');
 const { errorHandler } = require('./middleware/errorHandler');
 const { connectDB } = require('./utils/database');
+const setupDatabaseOnce = require('./setup-db-once');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -61,6 +62,9 @@ async function startServer() {
   try {
     await connectDB();
     console.log('✅ Database connected successfully');
+    
+    // Setup database tables if they don't exist
+    await setupDatabaseOnce();
     
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
