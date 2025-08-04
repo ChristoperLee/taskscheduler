@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '../store';
 import { fetchSchedulerById } from '../store/slices/schedulerSlice';
-import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid, Clock, Edit, ChevronLeft, ChevronRight, CalendarCheck, X } from 'lucide-react';
+import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid, Clock, Edit, ChevronLeft, ChevronRight, CalendarCheck, X, Filter, ChevronDown } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import RecurrenceDisplay from '../components/RecurrenceDisplay';
 import { SchedulerItem } from '../types';
@@ -516,13 +516,39 @@ const MonthlyView: React.FC<{
   getItemsForDate: (date: Date) => SchedulerItem[];
   formatTime: (time: string) => string;
   parseTime: (time: string) => number;
-}> = ({ selectedDate, setSelectedDate, daysOfWeek, getItemsForDate, formatTime, parseTime }) => {
+}> = ({ scheduler, selectedDate, setSelectedDate, daysOfWeek, getItemsForDate, formatTime, parseTime }) => {
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth();
   
   // State for expanded day view
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
   const [expandedDayItems, setExpandedDayItems] = useState<SchedulerItem[]>([]);
+  
+  // State for filters - with localStorage persistence
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeFilters, setActiveFilters] = useState(() => {
+    // Load saved filters from localStorage
+    const savedFilters = localStorage.getItem(`monthlyViewFilters_${scheduler?.id}`);
+    if (savedFilters) {
+      try {
+        return JSON.parse(savedFilters);
+      } catch (e) {
+        console.error('Error parsing saved filters:', e);
+      }
+    }
+    return {
+      colors: [] as string[],
+      priorities: [] as number[],
+      recurrenceTypes: [] as string[]
+    };
+  });
+
+  // Save filters to localStorage whenever they change
+  useEffect(() => {
+    if (scheduler?.id) {
+      localStorage.setItem(`monthlyViewFilters_${scheduler.id}`, JSON.stringify(activeFilters));
+    }
+  }, [activeFilters, scheduler?.id]);
   
   const firstDayOfMonth = new Date(year, month, 1);
   const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -564,6 +590,45 @@ const MonthlyView: React.FC<{
   };
   
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+  
+  // Filter options
+  const categories = ['work', 'personal', 'health', 'education', 'family', 'creative', 'business'];
+  const colors = ['blue', 'green', 'red', 'yellow', 'purple', 'pink', 'indigo', 'gray'];
+  const priorities = [
+    { value: 1, label: 'High', color: 'red' },
+    { value: 2, label: 'Medium', color: 'yellow' },
+    { value: 3, label: 'Low', color: 'green' }
+  ];
+  const recurrenceTypes = [
+    { value: 'one-time', label: 'One-time' },
+    { value: 'daily', label: 'Daily' },
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'bi-weekly', label: 'Bi-weekly' },
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'quarterly', label: 'Quarterly' }
+  ];
+  
+  // Filter function
+  const filterItems = (items: SchedulerItem[]): SchedulerItem[] => {
+    return items.filter(item => {
+      // If no filters active, show all
+      if (activeFilters.colors.length === 0 && 
+          activeFilters.priorities.length === 0 && 
+          activeFilters.recurrenceTypes.length === 0) {
+        return true;
+      }
+      
+      // Check each filter type
+      const colorMatch = activeFilters.colors.length === 0 || 
+        activeFilters.colors.includes(item.color || 'blue');
+      const priorityMatch = activeFilters.priorities.length === 0 || 
+        activeFilters.priorities.includes(item.priority || 1);
+      const recurrenceMatch = activeFilters.recurrenceTypes.length === 0 || 
+        activeFilters.recurrenceTypes.includes(item.recurrence_type || 'one-time');
+      
+      return colorMatch && priorityMatch && recurrenceMatch;
+    });
+  };
 
   return (
     <div>
@@ -622,8 +687,160 @@ const MonthlyView: React.FC<{
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+          {/* Filter Toggle Button */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-all ${
+              showFilters ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            <span className="font-medium">Filters</span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            {Object.values(activeFilters).some(arr => arr.length > 0) && (
+              <span className="ml-1 px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+                {Object.values(activeFilters).reduce((acc, arr) => acc + arr.length, 0)}
+              </span>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="mb-3">
+            <p className="text-sm text-gray-600">
+              Filter items in the calendar view. {Object.values(activeFilters).reduce((acc, arr) => acc + arr.length, 0)} filter{Object.values(activeFilters).reduce((acc, arr) => acc + arr.length, 0) !== 1 ? 's' : ''} active.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Color Filters */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Colors</h3>
+              <div className="space-y-1">
+                {colors.map(color => {
+                  const isActive = activeFilters.colors.includes(color);
+                  const colorClasses = getColorClasses(color);
+                  return (
+                    <label key={color} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isActive}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setActiveFilters(prev => ({
+                              ...prev,
+                              colors: [...prev.colors, color]
+                            }));
+                          } else {
+                            setActiveFilters(prev => ({
+                              ...prev,
+                              colors: prev.colors.filter(c => c !== color)
+                            }));
+                          }
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-3 h-3 rounded-full ${colorClasses.swatch}`}></div>
+                        <span className="text-sm text-gray-700 capitalize">{color}</span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Priority Filters */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Priority</h3>
+              <div className="space-y-1">
+                {priorities.map(priority => {
+                  const isActive = activeFilters.priorities.includes(priority.value);
+                  return (
+                    <label key={priority.value} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isActive}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setActiveFilters(prev => ({
+                              ...prev,
+                              priorities: [...prev.priorities, priority.value]
+                            }));
+                          } else {
+                            setActiveFilters(prev => ({
+                              ...prev,
+                              priorities: prev.priorities.filter(p => p !== priority.value)
+                            }));
+                          }
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className={`text-sm px-2 py-0.5 rounded-full ${
+                        priority.color === 'red' ? 'bg-red-100 text-red-700' :
+                        priority.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {priority.label}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Recurrence Type Filters */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Recurrence</h3>
+              <div className="space-y-1">
+                {recurrenceTypes.map(type => {
+                  const isActive = activeFilters.recurrenceTypes.includes(type.value);
+                  return (
+                    <label key={type.value} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isActive}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setActiveFilters(prev => ({
+                              ...prev,
+                              recurrenceTypes: [...prev.recurrenceTypes, type.value]
+                            }));
+                          } else {
+                            setActiveFilters(prev => ({
+                              ...prev,
+                              recurrenceTypes: prev.recurrenceTypes.filter(t => t !== type.value)
+                            }));
+                          }
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{type.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Clear Filters */}
+            <div className="flex items-end">
+              <button
+                onClick={() => setActiveFilters({
+                  colors: [],
+                  priorities: [],
+                  recurrenceTypes: []
+                })}
+                className="w-full px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={Object.values(activeFilters).every(arr => arr.length === 0)}
+              >
+                Clear All Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
         {/* Days of week header */}
@@ -645,7 +862,8 @@ const MonthlyView: React.FC<{
           <div key={weekIndex} className="grid grid-cols-7 border-t border-gray-200">
             {week.map((day, dayIndex) => {
               const currentDate = day ? new Date(year, month, day) : null;
-              const dayItems = currentDate ? getItemsForDate(currentDate) : [];
+              const unfilteredItems = currentDate ? getItemsForDate(currentDate) : [];
+              const dayItems = filterItems(unfilteredItems);
               
               
               const isCurrentDay = currentDate && isToday(currentDate);
