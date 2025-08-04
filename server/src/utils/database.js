@@ -1,5 +1,10 @@
 const { Pool } = require('pg');
 
+// Debug logging
+console.log('Database Configuration:');
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Set (hidden)' : 'Not set');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+
 // Use DATABASE_URL if available (for production), otherwise use individual settings
 const connectionConfig = process.env.DATABASE_URL
   ? {
@@ -13,6 +18,8 @@ const connectionConfig = process.env.DATABASE_URL
       user: process.env.DB_USER || 'chrislee',
       password: process.env.DB_PASSWORD,
     };
+
+console.log('Using config:', process.env.DATABASE_URL ? 'DATABASE_URL' : 'Individual settings');
 
 const pool = new Pool({
   ...connectionConfig,
