@@ -1,9 +1,10 @@
 const { Pool } = require('pg');
 
 // Debug logging
-console.log('Database Configuration:');
+console.log('=== Database Configuration ===');
 console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Set (hidden)' : 'Not set');
 console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('Starting at:', new Date().toISOString());
 
 // Use DATABASE_URL if available (for production), otherwise use individual settings
 const connectionConfig = process.env.DATABASE_URL
