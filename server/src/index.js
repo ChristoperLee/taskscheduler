@@ -4,6 +4,12 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 require('dotenv').config();
 
+// Debug environment variables
+console.log('=== Environment Check at Startup ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+console.log('All env keys:', Object.keys(process.env).filter(key => !key.startsWith('npm_')).join(', '));
+
 const authRoutes = require('./routes/auth');
 const schedulerRoutes = require('./routes/schedulers');
 const analyticsRoutes = require('./routes/analytics');
