@@ -2,6 +2,17 @@
 
 This guide covers the deployment process for the TaskScheduler application, including various deployment options and configurations.
 
+## Live Deployment
+
+🚀 **Current Production Deployment:**
+- **Frontend**: https://christoperlee.github.io/taskscheduler
+- **Backend API**: https://taskscheduler-production-5c67.up.railway.app
+- **Database**: PostgreSQL on Railway
+
+Default login credentials:
+- Username: `john_doe`
+- Password: `password123`
+
 ## Table of Contents
 1. [Prerequisites](#prerequisites)
 2. [Environment Setup](#environment-setup)
@@ -384,25 +395,67 @@ heroku run npm run setup-db
 3. **Configure Cloud Load Balancing**
 4. **Set up Cloud CDN for static assets**
 
-### Option 5: Serverless Deployment (Vercel + Railway)
+### Option 5: GitHub Pages + Railway (Recommended)
 
-#### Frontend on Vercel
+This is the deployment method used for the live production deployment.
 
-```bash
-# Install Vercel CLI
-npm i -g vercel
+#### Frontend on GitHub Pages
 
-# Deploy frontend
-cd client
-vercel --prod
-```
+1. **Configure package.json**:
+   ```json
+   {
+     "homepage": "https://YOUR_USERNAME.github.io/YOUR_REPO",
+     "scripts": {
+       "predeploy": "npm run build",
+       "deploy": "gh-pages -d build"
+     }
+   }
+   ```
+
+2. **Create production environment file**:
+   ```bash
+   # client/.env.production
+   REACT_APP_API_URL=https://YOUR_BACKEND_URL/api
+   ```
+
+3. **Deploy to GitHub Pages**:
+   ```bash
+   cd client
+   npm install --save-dev gh-pages
+   npm run deploy
+   ```
 
 #### Backend on Railway
 
-1. Connect GitHub repository
-2. Add PostgreSQL service
-3. Configure environment variables
-4. Deploy automatically on push
+1. **Connect GitHub repository**:
+   - Sign up at https://railway.app
+   - Create new project from GitHub repo
+   - Railway will auto-detect Node.js app
+
+2. **Add PostgreSQL service**:
+   - Click "+ New" → "Database" → "PostgreSQL"
+   - Railway automatically provides DATABASE_URL
+
+3. **Configure environment variables**:
+   - Go to your service settings → Variables
+   - Add:
+     ```
+     NODE_ENV=production
+     JWT_SECRET=your-secure-jwt-secret
+     CORS_ORIGIN=https://YOUR_USERNAME.github.io/YOUR_REPO
+     ```
+
+4. **Database Setup - IMPORTANT**:
+   After first deployment, manually trigger database setup:
+   ```
+   https://YOUR_BACKEND_URL/api/setup-database
+   ```
+   This endpoint creates tables and seeds sample data.
+
+5. **Configure deployment**:
+   - Railway auto-deploys on git push
+   - Uses nixpacks by default
+   - Start command: `cd server && node src/index.js`
 
 ## Database Setup
 
@@ -582,19 +635,33 @@ jobs:
    - Check DATABASE_URL format
    - Verify PostgreSQL is running
    - Check firewall rules
+   - For Railway: Ensure DATABASE_URL is properly referenced
 
 2. **CORS Errors**
-   - Verify CORS_ORIGIN in backend
-   - Check API_URL in frontend
+   - Verify CORS_ORIGIN in backend matches your GitHub Pages URL
+   - Check API_URL in frontend includes `/api` suffix
+   - Example: `https://backend.railway.app/api` not just `https://backend.railway.app`
 
 3. **404 on Routes**
-   - Ensure Nginx try_files directive
+   - For GitHub Pages: Ensure `homepage` in package.json is correct
    - Check React Router configuration
+   - API routes should include `/api` prefix
 
-4. **Performance Issues**
-   - Enable PM2 cluster mode
-   - Add database indexes
-   - Implement caching
+4. **Database Tables Not Created**
+   - Railway doesn't auto-run setup scripts
+   - Visit `/api/setup-database` endpoint after deployment
+   - Check server logs for migration errors
+
+5. **GitHub Pages Not Working**
+   - Wait 5-10 minutes after first deployment
+   - Check repository Settings → Pages
+   - Ensure gh-pages branch exists
+   - Try manual deploy: `npm run deploy`
+
+6. **Environment Variables Not Loading**
+   - Railway: Check Variables tab in service settings
+   - Use Railway's provided DATABASE_URL
+   - Don't hardcode sensitive values
 
 ## Security Checklist
 
@@ -621,6 +688,22 @@ jobs:
 
 **Total**: ~$20-65/month
 
+## Production Database Setup Script
+
+The application includes a setup endpoint for production database initialization:
+
+```javascript
+// server/src/routes/setup.js
+router.get('/api/setup-database', async (req, res) => {
+  // Checks if tables exist
+  // Creates tables if needed
+  // Seeds sample data
+  // Returns success status
+});
+```
+
+**Important**: Remove this endpoint after initial setup for security.
+
 ## Conclusion
 
 This deployment guide covers multiple options from simple VPS deployment to containerized and serverless solutions. Choose based on your:
@@ -629,4 +712,12 @@ This deployment guide covers multiple options from simple VPS deployment to cont
 - Scaling requirements
 - Maintenance preferences
 
-For most use cases, start with Option 1 (VPS) or Option 5 (Serverless) for simplicity and cost-effectiveness.
+**Recommended approach**: GitHub Pages + Railway (Option 5)
+- ✅ Free frontend hosting
+- ✅ Simple backend deployment
+- ✅ Automatic HTTPS
+- ✅ Built-in CI/CD
+- ✅ Minimal configuration
+- ✅ Production-ready
+
+The live production deployment uses this approach and serves as a working example.

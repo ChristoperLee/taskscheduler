@@ -186,6 +186,57 @@ cd server && npm test
 npm run build
 ```
 
+## Deployment
+
+This application is deployed using:
+- **Frontend**: GitHub Pages (https://christoperlee.github.io/taskscheduler)
+- **Backend**: Railway (https://taskscheduler-production-5c67.up.railway.app)
+- **Database**: PostgreSQL on Railway
+
+### Quick Deployment Steps
+
+1. **GitHub Repository Setup**
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+   git push -u origin main
+   ```
+
+2. **Backend Deployment (Railway)**
+   - Connect your GitHub repository to Railway
+   - Add environment variables:
+     - `NODE_ENV=production`
+     - `JWT_SECRET=your-secret-key`
+     - `CORS_ORIGIN=https://YOUR_USERNAME.github.io/YOUR_REPO`
+   - Railway will auto-provision PostgreSQL with DATABASE_URL
+
+3. **Frontend Deployment (GitHub Pages)**
+   ```bash
+   cd client
+   npm run deploy
+   ```
+
+4. **Database Setup**
+   - After first deployment, visit: `https://YOUR_BACKEND_URL/api/setup-database`
+   - This creates tables and seeds sample data
+
+### Production Environment Variables
+
+**Backend (Railway)**:
+- `NODE_ENV=production`
+- `DATABASE_URL` (auto-provided by Railway)
+- `JWT_SECRET` (generate a secure key)
+- `CORS_ORIGIN` (your GitHub Pages URL)
+
+**Frontend (.env.production)**:
+```
+REACT_APP_API_URL=https://YOUR_BACKEND_URL/api
+```
+
+For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)
+
 ## Contributing
 
 1. Fork the repository
