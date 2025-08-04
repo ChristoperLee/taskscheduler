@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Fragment } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '../store';
 import { fetchSchedulerById } from '../store/slices/schedulerSlice';
-import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid, Clock, Edit } from 'lucide-react';
+import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid, Clock, Edit, ChevronLeft, ChevronRight, CalendarCheck, X } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import RecurrenceDisplay from '../components/RecurrenceDisplay';
 import { SchedulerItem } from '../types';
@@ -15,23 +15,23 @@ const getColorClasses = (color?: string) => {
   // Explicit mapping to ensure Tailwind includes these classes
   switch (colorToUse) {
     case 'blue':
-      return { bgClass: 'bg-blue-100', textClass: 'text-blue-800' };
+      return { bgClass: 'bg-blue-100', textClass: 'text-blue-800', swatch: 'bg-blue-500' };
     case 'green':
-      return { bgClass: 'bg-green-100', textClass: 'text-green-800' };
+      return { bgClass: 'bg-green-100', textClass: 'text-green-800', swatch: 'bg-green-500' };
     case 'red':
-      return { bgClass: 'bg-red-100', textClass: 'text-red-800' };
+      return { bgClass: 'bg-red-100', textClass: 'text-red-800', swatch: 'bg-red-500' };
     case 'yellow':
-      return { bgClass: 'bg-yellow-100', textClass: 'text-yellow-800' };
+      return { bgClass: 'bg-yellow-100', textClass: 'text-yellow-800', swatch: 'bg-yellow-500' };
     case 'purple':
-      return { bgClass: 'bg-purple-100', textClass: 'text-purple-800' };
+      return { bgClass: 'bg-purple-100', textClass: 'text-purple-800', swatch: 'bg-purple-500' };
     case 'pink':
-      return { bgClass: 'bg-pink-100', textClass: 'text-pink-800' };
+      return { bgClass: 'bg-pink-100', textClass: 'text-pink-800', swatch: 'bg-pink-500' };
     case 'indigo':
-      return { bgClass: 'bg-indigo-100', textClass: 'text-indigo-800' };
+      return { bgClass: 'bg-indigo-100', textClass: 'text-indigo-800', swatch: 'bg-indigo-500' };
     case 'gray':
-      return { bgClass: 'bg-gray-100', textClass: 'text-gray-800' };
+      return { bgClass: 'bg-gray-100', textClass: 'text-gray-800', swatch: 'bg-gray-500' };
     default:
-      return { bgClass: 'bg-blue-100', textClass: 'text-blue-800' };
+      return { bgClass: 'bg-blue-100', textClass: 'text-blue-800', swatch: 'bg-blue-500' };
   }
 };
 
@@ -357,6 +357,8 @@ const SchedulerDetailPage: React.FC = () => {
             daysOfWeek={daysOfWeek}
             getItemsForDay={getItemsForDay}
             getItemsForDate={getItemsForDate}
+            formatTime={formatTime}
+            parseTime={parseTime}
           />
         )}
         
@@ -512,9 +514,15 @@ const MonthlyView: React.FC<{
   daysOfWeek: string[];
   getItemsForDay: (day: number) => SchedulerItem[];
   getItemsForDate: (date: Date) => SchedulerItem[];
-}> = ({ selectedDate, setSelectedDate, daysOfWeek, getItemsForDate }) => {
+  formatTime: (time: string) => string;
+  parseTime: (time: string) => number;
+}> = ({ selectedDate, setSelectedDate, daysOfWeek, getItemsForDate, formatTime, parseTime }) => {
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth();
+  
+  // State for expanded day view
+  const [expandedDay, setExpandedDay] = useState<Date | null>(null);
+  const [expandedDayItems, setExpandedDayItems] = useState<SchedulerItem[]>([]);
   
   const firstDayOfMonth = new Date(year, month, 1);
   const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -549,32 +557,84 @@ const MonthlyView: React.FC<{
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
+  // Get today's date for comparison
+  const today = new Date();
+  const isToday = (date: Date) => {
+    return date.toDateString() === today.toDateString();
+  };
+  
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Monthly View</h2>
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => setSelectedDate(new Date(year, month - 1, 1))}
-            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-          >
-            Previous
-          </button>
-          <span className="font-medium">{monthNames[month]} {year}</span>
-          <button
-            onClick={() => setSelectedDate(new Date(year, month + 1, 1))}
-            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-          >
-            Next
-          </button>
+        <div className="flex items-center space-x-3">
+          {/* Today Button */}
+          {!isCurrentMonth && (
+            <button
+              onClick={() => setSelectedDate(new Date())}
+              className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-md transition-colors"
+              title="Go to today"
+            >
+              <CalendarCheck className="w-4 h-4" />
+              <span>Today</span>
+            </button>
+          )}
+          
+          {/* Month Navigation */}
+          <div className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm">
+            <button
+              onClick={() => setSelectedDate(new Date(year, month - 1, 1))}
+              className="p-2 hover:bg-gray-100 rounded-l-lg transition-colors"
+              title="Previous month"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            
+            {/* Month/Year Display with Selectors */}
+            <div className="px-4 py-1.5 min-w-[160px] text-center">
+              <select
+                value={month}
+                onChange={(e) => setSelectedDate(new Date(year, parseInt(e.target.value), 1))}
+                className="font-medium text-gray-900 bg-transparent border-none focus:outline-none cursor-pointer hover:text-blue-600"
+              >
+                {monthNames.map((monthName, idx) => (
+                  <option key={idx} value={idx}>{monthName}</option>
+                ))}
+              </select>
+              <select
+                value={year}
+                onChange={(e) => setSelectedDate(new Date(parseInt(e.target.value), month, 1))}
+                className="ml-1 font-medium text-gray-900 bg-transparent border-none focus:outline-none cursor-pointer hover:text-blue-600"
+              >
+                {Array.from({ length: 10 }, (_, i) => year - 5 + i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            
+            <button
+              onClick={() => setSelectedDate(new Date(year, month + 1, 1))}
+              className="p-2 hover:bg-gray-100 rounded-r-lg transition-colors"
+              title="Next month"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
         {/* Days of week header */}
-        <div className="grid grid-cols-7 bg-gray-50">
-          {daysOfWeek.map((day) => (
-            <div key={day} className="p-3 text-center font-medium text-gray-700 border-r border-gray-200 last:border-r-0">
+        <div className="grid grid-cols-7 bg-gradient-to-b from-gray-50 to-gray-100">
+          {daysOfWeek.map((day, idx) => (
+            <div 
+              key={day} 
+              className={`p-3 text-center font-medium border-r border-gray-200 last:border-r-0 ${
+                idx >= 5 ? 'text-blue-700 bg-blue-50/50' : 'text-gray-700'
+              }`}
+            >
               {day.slice(0, 3)}
             </div>
           ))}
@@ -588,23 +648,61 @@ const MonthlyView: React.FC<{
               const dayItems = currentDate ? getItemsForDate(currentDate) : [];
               
               
+              const isCurrentDay = currentDate && isToday(currentDate);
+              const dayClasses = `min-h-24 p-2 border-r border-gray-200 last:border-r-0 cursor-pointer transition-all hover:bg-gray-50 ${
+                isCurrentDay ? 'bg-blue-50 ring-2 ring-blue-400 ring-inset' : ''
+              }`;
+              
               return (
-                <div key={dayIndex} className="min-h-24 p-2 border-r border-gray-200 last:border-r-0">
+                <div 
+                  key={dayIndex} 
+                  className={dayClasses}
+                  onClick={() => {
+                    if (day && currentDate && dayItems.length > 0) {
+                      setExpandedDay(currentDate);
+                      setExpandedDayItems(dayItems);
+                    }
+                  }}
+                  onDoubleClick={() => {
+                    if (day && currentDate) {
+                      // Placeholder for quick add
+                      console.log('Double-clicked for quick add:', currentDate);
+                    }
+                  }}
+                  title={day ? `${dayItems.length} ${dayItems.length === 1 ? 'item' : 'items'}` : ''}
+                >
                   {day && (
                     <>
-                      <div className="text-sm font-medium text-gray-900 mb-1">{day}</div>
+                      <div className={`text-sm font-medium mb-1 ${isCurrentDay ? 'text-blue-700' : 'text-gray-900'}`}>
+                        {day}
+                        {isCurrentDay && <span className="ml-1 text-xs font-normal">(Today)</span>}
+                      </div>
                       <div className="space-y-1">
                         {dayItems.slice(0, 2).map((item) => {
                           const colorClasses = getColorClasses(item.color);
-                          const finalClassName = `text-xs ${colorClasses.bgClass} ${colorClasses.textClass} px-1 py-0.5 rounded truncate`;
+                          const finalClassName = `text-xs ${colorClasses.bgClass} ${colorClasses.textClass} px-1 py-0.5 rounded truncate flex items-center`;
                           return (
-                            <div key={item.id} className={finalClassName}>
-                              {item.title}
+                            <div 
+                              key={item.id} 
+                              className={finalClassName}
+                              title={`${item.title} (${item.start_time || 'All day'})`}
+                            >
+                              {item.start_time && (
+                                <span className="text-xs opacity-75 mr-1">
+                                  {item.start_time.slice(0, 5)}
+                                </span>
+                              )}
+                              <span className="truncate">{item.title}</span>
                             </div>
                           );
                         })}
                         {dayItems.length > 2 && (
-                          <div className="text-xs text-gray-500">+{dayItems.length - 2} more</div>
+                          <div 
+                            className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                            title={`View all ${dayItems.length} items`}
+                          >
+                            +{dayItems.length - 2} more
+                          </div>
                         )}
                       </div>
                     </>
@@ -615,6 +713,104 @@ const MonthlyView: React.FC<{
           </div>
         ))}
       </div>
+      
+      {/* Expanded Day Modal */}
+      {expandedDay && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {expandedDay.toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {expandedDayItems.length} {expandedDayItems.length === 1 ? 'item' : 'items'} scheduled
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setExpandedDay(null);
+                    setExpandedDayItems([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="px-6 py-4 overflow-y-auto max-h-[60vh]">
+              <div className="space-y-3">
+                {expandedDayItems
+                  .sort((a, b) => {
+                    const timeA = a.start_time ? parseTime(a.start_time) : 0;
+                    const timeB = b.start_time ? parseTime(b.start_time) : 0;
+                    return timeA - timeB;
+                  })
+                  .map((item) => {
+                    const colorClasses = getColorClasses(item.color);
+                    return (
+                      <div 
+                        key={item.id}
+                        className={`border-2 rounded-lg p-4 ${colorClasses.bgClass} border-gray-200 hover:shadow-md transition-shadow`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <h4 className="font-semibold text-gray-900">{item.title}</h4>
+                              <div className={`w-3 h-3 rounded-full ${getColorClasses(item.color).swatch}`}></div>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                            <div className="flex flex-wrap items-center gap-3 text-sm">
+                              <div className="flex items-center space-x-1 text-gray-700">
+                                <Clock className="w-4 h-4" />
+                                <span>
+                                  {item.start_time ? formatTime(item.start_time) : 'All day'}
+                                  {item.end_time && ` - ${formatTime(item.end_time)}`}
+                                </span>
+                              </div>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                item.priority === 1 ? 'bg-red-100 text-red-700' :
+                                item.priority === 2 ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                Priority {item.priority}
+                              </span>
+                              <RecurrenceDisplay recurrenceType={item.recurrence_type} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setExpandedDay(null);
+                    setExpandedDayItems([]);
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
