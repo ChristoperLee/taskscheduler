@@ -205,4 +205,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { seedData }; 
+module.exports = seedData; 

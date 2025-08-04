@@ -102,4 +102,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { createTables }; 
+module.exports = createTables; 

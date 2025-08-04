@@ -1,6 +1,4 @@
 const { pool } = require('./utils/database');
-const fs = require('fs').promises;
-const path = require('path');
 
 async function setupDatabaseOnce() {
   try {
@@ -20,23 +18,16 @@ async function setupDatabaseOnce() {
     
     console.log('📦 Setting up database tables...');
     
-    // Read and execute setup.sql
-    const setupSQL = await fs.readFile(
-      path.join(__dirname, '../database/setup.sql'),
-      'utf8'
-    );
+    // Import and run the setup function
+    const createTables = require('../database/setup');
+    await createTables();
     
-    await pool.query(setupSQL);
-    console.log('✅ Database setup complete!');
+    // Import and run the seed function
+    console.log('🌱 Seeding database with sample data...');
+    const seedDatabase = require('../database/seed');
+    await seedDatabase();
     
-    // Optionally seed with sample data
-    const seedSQL = await fs.readFile(
-      path.join(__dirname, '../database/seed.sql'),
-      'utf8'
-    );
-    
-    await pool.query(seedSQL);
-    console.log('🌱 Database seeded with sample data');
+    console.log('✅ Database setup and seeding complete!');
     
   } catch (error) {
     console.error('❌ Database setup failed:', error);
