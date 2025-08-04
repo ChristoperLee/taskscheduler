@@ -1,0 +1,86 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm run install-all
+    
+    - name: Run linters
+      run: |
+        cd client && npm run lint
+        cd ../server && npm run lint || true
+    
+    - name: Run tests
+      run: |
+        cd client && npm test -- --watchAll=false
+        cd ../server && npm test || true
+    
+    - name: Build frontend
+      run: |
+        cd client && npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.PORT }}
+        script: |
+          cd /var/www/taskscheduler
+          git pull origin main
+          npm run install-all
+          cd client && npm run build
+          cd ../server
+          NODE_ENV=production npm run migrate
+          pm2 restart taskscheduler-api
+          pm2 save
+          
+    - name: Health Check
+      run: |
+        sleep 10
+        curl -f https://${{ secrets.PRODUCTION_URL }}/api/health || exit 1
+        
+    - name: Notify Success
+      if: success()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        text: 'TaskScheduler deployed successfully to production! 🚀'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        
+    - name: Notify Failure
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        text: 'TaskScheduler deployment failed! ❌'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
