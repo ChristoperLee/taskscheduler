@@ -386,10 +386,10 @@ router.post('/', protect, [
         await query(`
           INSERT INTO scheduler_items (
             scheduler_id, title, description, start_time, end_time, 
-            day_of_week, start_date, priority, order_index,
+            day_of_week, start_date, end_date, priority, order_index,
             recurrence_type, recurrence_interval, item_start_date, item_end_date, next_occurrence, color
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         `, [
           scheduler.id,
           item.title,
@@ -398,6 +398,7 @@ router.post('/', protect, [
           item.end_time,
           item.day_of_week,
           item.start_date,
+          null, // end_date column - keeping null for now
           item.priority || 1,
           item.order_index || i,
           item.recurrence_type || 'one-time',
@@ -480,36 +481,74 @@ router.put('/:id', protect, async (req, res) => {
         console.log(`🎨 Backend processing item ${i + 1}:`, {
           title: item.title,
           color: item.color,
+          target_date: item.target_date,
           fullItem: item
         });
         
-        // Calculate next occurrence for the item
-        let next_occurrence = item.item_start_date || item.start_date || new Date().toISOString().split('T')[0];
-        
-        await query(`
-          INSERT INTO scheduler_items (
-            scheduler_id, title, description, start_time, end_time, 
-            day_of_week, start_date, priority, order_index,
-            recurrence_type, recurrence_interval, item_start_date, item_end_date, next_occurrence, color
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        `, [
-          scheduler.id,
-          item.title,
-          item.description,
-          item.start_time,
-          item.end_time,
-          item.day_of_week,
-          item.start_date,
-          item.priority || 1,
-          item.order_index || i,
-          item.recurrence_type || 'one-time',
-          item.recurrence_interval || 1,
-          item.item_start_date,
-          item.item_end_date,
-          next_occurrence,
-          item.color || 'blue'
-        ]);
+        try {
+          // Handle both new format (target_date) and legacy format
+          const targetDate = item.target_date || item.start_date || item.item_start_date;
+          const endDate = item.end_date || item.item_end_date;
+          
+          // Calculate next occurrence for the item
+          let next_occurrence = targetDate || new Date().toISOString().split('T')[0];
+          
+          // For backward compatibility, set start_date and item_start_date based on recurrence_type
+          const startDate = item.recurrence_type === 'one-time' ? targetDate : item.start_date;
+          const itemStartDate = item.recurrence_type !== 'one-time' ? targetDate : item.item_start_date;
+          const itemEndDate = item.recurrence_type !== 'one-time' ? endDate : item.item_end_date;
+          
+          console.log(`📝 Inserting item ${i + 1} with values:`, {
+            scheduler_id: scheduler.id,
+            title: item.title,
+            description: item.description,
+            start_time: item.start_time,
+            end_time: item.end_time,
+            day_of_week: item.day_of_week,
+            start_date: startDate,
+            end_date: null,
+            priority: item.priority || 1,
+            order_index: item.order_index || i,
+            recurrence_type: item.recurrence_type || 'one-time',
+            recurrence_interval: item.recurrence_interval || 1,
+            item_start_date: itemStartDate,
+            item_end_date: itemEndDate,
+            next_occurrence: next_occurrence,
+            color: item.color || 'blue'
+          });
+          
+          await query(`
+            INSERT INTO scheduler_items (
+              scheduler_id, title, description, start_time, end_time, 
+              day_of_week, start_date, end_date, priority, order_index,
+              recurrence_type, recurrence_interval, item_start_date, item_end_date, next_occurrence, color
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          `, [
+            scheduler.id,
+            item.title,
+            item.description,
+            item.start_time,
+            item.end_time,
+            item.day_of_week,
+            startDate,
+            null, // end_date column - keeping null for now
+            item.priority || 1,
+            item.order_index || i,
+            item.recurrence_type || 'one-time',
+            item.recurrence_interval || 1,
+            itemStartDate,
+            itemEndDate,
+            next_occurrence,
+            item.color || 'blue'
+          ]);
+          
+          console.log(`✅ Successfully inserted item ${i + 1}`);
+        } catch (itemError) {
+          console.error(`❌ Error inserting item ${i + 1}:`, itemError);
+          console.error('Item data that caused error:', item);
+          throw itemError; // Re-throw to be caught by outer try-catch
+        }
       }
     }
 
@@ -520,9 +559,12 @@ router.put('/:id', protect, async (req, res) => {
 
   } catch (error) {
     console.error('Update scheduler error:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: error.message || 'Server error',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });

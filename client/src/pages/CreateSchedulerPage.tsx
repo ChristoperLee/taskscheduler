@@ -74,8 +74,17 @@ const CreateSchedulerPage: React.FC = () => {
   };
 
   const addItem = () => {
-    if (!newItem.title || !newItem.description) {
-      setErrors({ item: 'Title and description are required' });
+    // Clear any previous errors
+    setErrors({});
+    
+    // Validate required fields
+    if (!newItem.title || newItem.title.trim() === '') {
+      setErrors({ item: 'Title is required' });
+      return;
+    }
+
+    if (!newItem.description || newItem.description.trim() === '') {
+      setErrors({ item: 'Description is required' });
       return;
     }
 
@@ -94,8 +103,8 @@ const CreateSchedulerPage: React.FC = () => {
     const dayOfWeek = jsDay === 0 ? 7 : jsDay;
 
     const itemData: SchedulerItem = {
-      title: newItem.title!,
-      description: newItem.description!,
+      title: newItem.title.trim(),
+      description: newItem.description.trim(),
       target_date: newItem.target_date,
       end_date: newItem.end_date || undefined,
       // Legacy fields for backward compatibility
@@ -416,8 +425,13 @@ const CreateSchedulerPage: React.FC = () => {
                       name="title"
                       value={newItem.title || ''}
                       onChange={handleItemChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.item && (!newItem.title || newItem.title.trim() === '') 
+                          ? 'border-red-300 bg-red-50' 
+                          : 'border-gray-300'
+                      }`}
                       placeholder="e.g., Team Meeting, Workout, Study Session"
+                      required
                     />
                   </div>
 
@@ -430,8 +444,13 @@ const CreateSchedulerPage: React.FC = () => {
                       name="description"
                       value={newItem.description || ''}
                       onChange={handleItemChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.item && (!newItem.description || newItem.description.trim() === '') 
+                          ? 'border-red-300 bg-red-50' 
+                          : 'border-gray-300'
+                      }`}
                       placeholder="Brief description of the activity"
+                      required
                     />
                   </div>
                 </div>

@@ -11,7 +11,7 @@ interface SchedulerItem {
   title: string;
   description: string;
   target_date?: string; // New: unified target date
-  end_date?: string; // New: end date for duration
+  end_date?: string | null; // New: end date for duration
   day_of_week?: number | null; // Legacy: keep for backward compatibility
   start_date?: string | null; // Legacy: keep for backward compatibility
   start_time: string;
@@ -38,14 +38,14 @@ const getOrdinalSuffix = (day: number): string => {
 
 // Color options for schedule items
 const colorOptions = [
-  { value: 'blue', label: 'Blue', bgClass: 'bg-blue-100', textClass: 'text-blue-800', preview: 'bg-blue-500' },
-  { value: 'green', label: 'Green', bgClass: 'bg-green-100', textClass: 'text-green-800', preview: 'bg-green-500' },
-  { value: 'red', label: 'Red', bgClass: 'bg-red-100', textClass: 'text-red-800', preview: 'bg-red-500' },
-  { value: 'yellow', label: 'Yellow', bgClass: 'bg-yellow-100', textClass: 'text-yellow-800', preview: 'bg-yellow-500' },
-  { value: 'purple', label: 'Purple', bgClass: 'bg-purple-100', textClass: 'text-purple-800', preview: 'bg-purple-500' },
-  { value: 'pink', label: 'Pink', bgClass: 'bg-pink-100', textClass: 'text-pink-800', preview: 'bg-pink-500' },
-  { value: 'indigo', label: 'Indigo', bgClass: 'bg-indigo-100', textClass: 'text-indigo-800', preview: 'bg-indigo-500' },
-  { value: 'gray', label: 'Gray', bgClass: 'bg-gray-100', textClass: 'text-gray-800', preview: 'bg-gray-500' }
+  { value: 'blue', label: 'Blue', bgClass: 'bg-blue-100', textClass: 'text-blue-800', swatch: 'bg-blue-500' },
+  { value: 'green', label: 'Green', bgClass: 'bg-green-100', textClass: 'text-green-800', swatch: 'bg-green-500' },
+  { value: 'red', label: 'Red', bgClass: 'bg-red-100', textClass: 'text-red-800', swatch: 'bg-red-500' },
+  { value: 'yellow', label: 'Yellow', bgClass: 'bg-yellow-100', textClass: 'text-yellow-800', swatch: 'bg-yellow-500' },
+  { value: 'purple', label: 'Purple', bgClass: 'bg-purple-100', textClass: 'text-purple-800', swatch: 'bg-purple-500' },
+  { value: 'pink', label: 'Pink', bgClass: 'bg-pink-100', textClass: 'text-pink-800', swatch: 'bg-pink-500' },
+  { value: 'indigo', label: 'Indigo', bgClass: 'bg-indigo-100', textClass: 'text-indigo-800', swatch: 'bg-indigo-500' },
+  { value: 'gray', label: 'Gray', bgClass: 'bg-gray-100', textClass: 'text-gray-800', swatch: 'bg-gray-500' }
 ];
 
 // Helper function to get color classes with explicit class mapping
@@ -90,8 +90,8 @@ const EditSchedulerPage: React.FC = () => {
   const [newItem, setNewItem] = useState<Partial<SchedulerItem>>({
     title: '',
     description: '',
-    target_date: '',
-    end_date: '',
+    target_date: new Date().toISOString().split('T')[0],
+    end_date: null,
     start_time: '09:00',
     end_time: '10:00',
     order_index: 0,
@@ -264,8 +264,17 @@ const EditSchedulerPage: React.FC = () => {
   };
 
   const addOrUpdateItem = () => {
-    if (!newItem.title || !newItem.description) {
-      setErrors({ item: 'Title and description are required' });
+    // Clear any previous errors
+    setErrors({});
+    
+    // Validate required fields
+    if (!newItem.title || newItem.title.trim() === '') {
+      setErrors({ item: 'Title is required' });
+      return;
+    }
+
+    if (!newItem.description || newItem.description.trim() === '') {
+      setErrors({ item: 'Description is required' });
       return;
     }
 
@@ -291,8 +300,8 @@ const EditSchedulerPage: React.FC = () => {
     });
 
     const itemData: SchedulerItem = {
-      title: newItem.title!,
-      description: newItem.description!,
+      title: newItem.title!.trim(),
+      description: newItem.description!.trim(),
       target_date: newItem.target_date,
       end_date: newItem.end_date || undefined,
       // Legacy fields for backward compatibility
@@ -329,8 +338,8 @@ const EditSchedulerPage: React.FC = () => {
     setNewItem({
       title: '',
       description: '',
-      target_date: '',
-      end_date: '',
+      target_date: new Date().toISOString().split('T')[0],
+      end_date: null,
       start_time: '09:00',
       end_time: '10:00',
       order_index: items.length + 1,
@@ -352,8 +361,8 @@ const EditSchedulerPage: React.FC = () => {
     setNewItem({
       title: '',
       description: '',
-      target_date: '',
-      end_date: '',
+      target_date: new Date().toISOString().split('T')[0],
+      end_date: null,
       start_time: '09:00',
       end_time: '10:00',
       order_index: 0,
@@ -434,6 +443,30 @@ const EditSchedulerPage: React.FC = () => {
   const daysOfWeek = [
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
   ];
+
+  // Helper function to get day name from date
+  const getDayFromDate = (dateString: string): string => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return daysOfWeek[date.getDay() === 0 ? 6 : date.getDay() - 1]; // Convert to our day system
+  };
+
+  // Helper function to get context-aware recurrence label
+  const getRecurrenceLabel = (recurrenceType: string, targetDate: string): string => {
+    if (!targetDate) return recurrenceType;
+    
+    const dayName = getDayFromDate(targetDate);
+    switch (recurrenceType) {
+      case 'daily': return 'Every day';
+      case 'weekly': return `Every ${dayName}`;
+      case 'bi-weekly': return `Every other ${dayName}`;
+      case 'monthly': return `Monthly on this date`;
+      case 'quarterly': return `Quarterly on this date`;
+      case 'one-time': return `One-time on ${dayName}`;
+      default: return recurrenceType;
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -563,418 +596,280 @@ const EditSchedulerPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {items.map((item, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{item.title}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{item.description}</p>
-                      <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                        {item.recurrence_type === 'one-time' ? (
-                          <span>{item.start_date ? new Date(item.start_date).toLocaleDateString() : 'No date set'}</span>
-                        ) : item.recurrence_type === 'daily' ? (
-                          <span>Every day</span>
-                        ) : (
-                          <span>{item.day_of_week ? daysOfWeek[item.day_of_week - 1] : 'No day set'}</span>
-                        )}
-                        <span>{item.start_time} - {item.end_time}</span>
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                          {item.recurrence_type === 'daily' && 'Daily'}
-                          {item.recurrence_type === 'weekly' && 'Weekly'}
-                          {item.recurrence_type === 'bi-weekly' && 'Bi-weekly'}
-                          {item.recurrence_type === 'monthly' && 'Monthly'}
-                          {item.recurrence_type === 'quarterly' && 'Quarterly'}
-                          {item.recurrence_type === 'one-time' && 'One-time'}
-                        </span>
+              {items.map((item, index) => {
+                const colorClasses = getColorClasses(item.color);
+                const targetDate = item.target_date || item.start_date || item.item_start_date || '';
+                return (
+                  <div key={index} className={`border-2 ${colorClasses.bgClass} border-gray-200 rounded-lg p-4`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h3 className="font-semibold text-gray-900">{item.title}</h3>
+                          <div className={`w-3 h-3 rounded-full ${colorOptions.find(opt => opt.value === item.color)?.swatch || 'bg-blue-500'}`}></div>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                          <span className="flex items-center space-x-1 text-gray-700">
+                            <Calendar className="w-4 h-4" />
+                            <span>{targetDate}</span>
+                          </span>
+                          <span className="text-gray-500">
+                            {item.start_time} - {item.end_time}
+                          </span>
+                          <span className={`px-2 py-1 ${colorClasses.bgClass} ${colorClasses.textClass} rounded-full text-xs font-medium`}>
+                            {getRecurrenceLabel(item.recurrence_type || 'one-time', targetDate)}
+                          </span>
+                          {item.end_date && (
+                            <span className="text-xs text-gray-500">
+                              Until {item.end_date}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => startEditingItem(index)}
+                          className="text-blue-500 hover:text-blue-700"
+                          title="Edit item"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(index)}
+                          className="text-red-500 hover:text-red-700"
+                          title="Remove item"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => startEditingItem(index)}
-                        className="text-blue-500 hover:text-blue-700"
-                        title="Edit item"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(index)}
-                        className="text-red-500 hover:text-red-700"
-                        title="Remove item"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* Add/Edit Item Form */}
+          {/* Add Item Form - New Progressive Design */}
           {showAddItem && (
-            <div className="border border-gray-200 rounded-lg p-4 mt-4">
-              <h3 className="font-medium text-gray-900 mb-4">
-                {editingItem !== null ? 'Edit Item' : 'Add New Item'}
+            <div className="border border-gray-200 rounded-lg p-6 mt-4 bg-gray-50">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">
+                {editingItem !== null ? 'Edit Schedule Item' : 'Add New Schedule Item'}
               </h3>
               
               {errors.item && (
-                <p className="text-sm text-red-600 mb-4">{errors.item}</p>
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-6">
+                  {errors.item}
+                </div>
               )}
 
-              {/* Step 1: Title */}
-              <div className="grid md:grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Title *
-                  </label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={newItem.title}
-                    onChange={handleItemChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    placeholder="Activity title"
-                  />
+              {/* Step 1: Basic Information - Blue Section */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-semibold text-blue-900 mb-3">📝 Basic Information</h4>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Title *
+                    </label>
+                    <input
+                      type="text"
+                      name="title"
+                      value={newItem.title || ''}
+                      onChange={handleItemChange}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.item && (!newItem.title || newItem.title.trim() === '') 
+                          ? 'border-red-300 bg-red-50' 
+                          : 'border-gray-300'
+                      }`}
+                      placeholder="e.g., Team Meeting, Workout, Study Session"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description *
+                    </label>
+                    <input
+                      type="text"
+                      name="description"
+                      value={newItem.description || ''}
+                      onChange={handleItemChange}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.item && (!newItem.description || newItem.description.trim() === '') 
+                          ? 'border-red-300 bg-red-50' 
+                          : 'border-gray-300'
+                      }`}
+                      placeholder="Brief description of the activity"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Step 2: When should this happen? */}
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">📅 When should this happen?</h4>
-                <div className="grid md:grid-cols-1 gap-4">
+              {/* Step 2: Target Date - Green Section */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-semibold text-green-900 mb-3">📅 Target Date</h4>
+                
+                <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Target Date *
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Date *
                     </label>
                     <input
                       type="date"
                       name="target_date"
                       value={newItem.target_date || ''}
                       onChange={handleItemChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
-                    {newItem.target_date && (
-                      <p className="mt-1 text-sm text-blue-600 font-medium">
-                        📍 {(() => {
-                          // Parse date correctly to avoid timezone issues
-                          const [year, month, day] = newItem.target_date.split('-').map(Number);
-                          const date = new Date(year, month - 1, day); // month is 0-indexed
-                          return date.toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          });
-                        })()}
-                      </p>
-                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Day Information
+                    </label>
+                    <div className="px-3 py-2 bg-green-100 border border-green-300 rounded-md text-green-800 font-medium">
+                      {newItem.target_date ? getDayFromDate(newItem.target_date) : 'Select a date'}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Step 3: Duration */}
-              {newItem.target_date && (
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3">⏱️ For how long?</h4>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        End Date (Optional)
-                      </label>
-                      <input
-                        type="date"
-                        name="end_date"
-                        value={newItem.end_date || ''}
-                        onChange={handleItemChange}
-                        min={newItem.target_date || undefined}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div className="flex items-center">
-                      <label className="flex items-center text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          name="no_end_date"
-                          checked={!newItem.end_date}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              handleItemChange({ target: { name: 'end_date', value: '' } } as any);
-                            }
-                          }}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mr-2"
-                        />
-                        No end date
-                      </label>
-                    </div>
+              {/* Step 3: Time Range - Purple Section */}
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-semibold text-purple-900 mb-3">⏰ Time Range</h4>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      name="start_time"
+                      value={newItem.start_time || '09:00'}
+                      onChange={handleItemChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
                   </div>
-                </div>
-              )}
 
-              {/* Step 4: How often? */}
-              {newItem.target_date && (
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3">🔄 How often?</h4>
-                  <div className="grid md:grid-cols-1 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Recurrence Type
-                      </label>
-                      <div className="space-y-2">
-                        {[
-                          { value: 'one-time', label: 'One-time Event' },
-                          { value: 'daily', label: 'Daily (Every day)' },
-                          { 
-                            value: 'weekly', 
-                            label: newItem.target_date 
-                              ? `Weekly (Every ${(() => {
-                                  const [year, month, day] = newItem.target_date.split('-').map(Number);
-                                  const date = new Date(year, month - 1, day);
-                                  return date.toLocaleDateString('en-US', { weekday: 'long' });
-                                })()})`
-                              : 'Weekly'
-                          },
-                          { 
-                            value: 'bi-weekly', 
-                            label: newItem.target_date 
-                              ? `Bi-weekly (Every 2 ${(() => {
-                                  const [year, month, day] = newItem.target_date.split('-').map(Number);
-                                  const date = new Date(year, month - 1, day);
-                                  return date.toLocaleDateString('en-US', { weekday: 'long' });
-                                })()}s)`
-                              : 'Bi-weekly'
-                          },
-                          { 
-                            value: 'monthly', 
-                            label: newItem.target_date 
-                              ? `Monthly (${(() => {
-                                  const [year, month, day] = newItem.target_date.split('-').map(Number);
-                                  const date = new Date(year, month - 1, day);
-                                  const dayOfMonth = date.getDate();
-                                  return `${dayOfMonth}${getOrdinalSuffix(dayOfMonth)}`;
-                                })()} of each month)`
-                              : 'Monthly'
-                          },
-                          { 
-                            value: 'quarterly', 
-                            label: newItem.target_date 
-                              ? `Quarterly (Every 3 months)`
-                              : 'Quarterly'
-                          }
-                        ].map((option) => (
-                          <label key={option.value} className="flex items-center">
-                            <input
-                              type="radio"
-                              name="recurrence_type"
-                              value={option.value}
-                              checked={newItem.recurrence_type === option.value}
-                              onChange={handleItemChange}
-                              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 mr-3"
-                            />
-                            <span className="text-sm text-gray-700">{option.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      name="end_time"
+                      value={newItem.end_time || '10:00'}
+                      onChange={handleItemChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
                   </div>
-                </div>
-              )}
-
-              {/* Occurrence Preview */}
-              {newItem.target_date && newItem.recurrence_type && (
-                <div className="bg-yellow-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3">👀 Preview Occurrences</h4>
-                  <div className="text-sm text-gray-700">
-                    {(() => {
-                      if (newItem.recurrence_type === 'one-time') {
-                        return (
-                          <p>
-                            📅 This will occur once on{' '}
-                            <span className="font-semibold text-blue-600">
-                              {(() => {
-                                const [year, month, day] = newItem.target_date.split('-').map(Number);
-                                const date = new Date(year, month - 1, day);
-                                return date.toLocaleDateString('en-US', { 
-                                  weekday: 'long', 
-                                  year: 'numeric', 
-                                  month: 'long', 
-                                  day: 'numeric' 
-                                });
-                              })()}
-                            </span>
-                          </p>
-                        );
-                      }
-
-                      // Calculate next few occurrences for recurring events
-                      const [year, month, day] = newItem.target_date.split('-').map(Number);
-                      const targetDate = new Date(year, month - 1, day);
-                      const endDate = newItem.end_date ? (() => {
-                        const [endYear, endMonth, endDay] = newItem.end_date.split('-').map(Number);
-                        return new Date(endYear, endMonth - 1, endDay);
-                      })() : null;
-                      const occurrences = [];
-                      let currentDate = new Date(targetDate);
-                      
-                      // Generate up to 5 occurrences or until end date
-                      for (let i = 0; i < 5; i++) {
-                        if (endDate && currentDate > endDate) break;
-                        
-                        occurrences.push(new Date(currentDate));
-                        
-                        // Calculate next occurrence
-                        switch (newItem.recurrence_type) {
-                          case 'daily':
-                            currentDate.setDate(currentDate.getDate() + 1);
-                            break;
-                          case 'weekly':
-                            currentDate.setDate(currentDate.getDate() + 7);
-                            break;
-                          case 'bi-weekly':
-                            currentDate.setDate(currentDate.getDate() + 14);
-                            break;
-                          case 'monthly':
-                            currentDate.setMonth(currentDate.getMonth() + 1);
-                            break;
-                          case 'quarterly':
-                            currentDate.setMonth(currentDate.getMonth() + 3);
-                            break;
-                        }
-                      }
-
-                      return (
-                        <div>
-                          <p className="mb-2">📅 Upcoming occurrences:</p>
-                          <div className="space-y-1 pl-4">
-                            {occurrences.map((date, index) => (
-                              <div key={index} className="flex items-center text-xs">
-                                <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
-                                <span className="font-medium">
-                                  {date.toLocaleDateString('en-US', { 
-                                    weekday: 'short', 
-                                    month: 'short', 
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                  })}
-                                </span>
-                              </div>
-                            ))}
-                            {endDate ? (
-                              <p className="text-xs text-gray-500 mt-2">
-                                ⏹️ Ends on {endDate.toLocaleDateString('en-US', { 
-                                  weekday: 'short', 
-                                  month: 'short', 
-                                  day: 'numeric',
-                                  year: 'numeric'
-                                })}
-                              </p>
-                            ) : occurrences.length === 5 ? (
-                              <p className="text-xs text-gray-500 mt-2">
-                                ♾️ ...and continues indefinitely
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    name="start_time"
-                    value={newItem.start_time}
-                    onChange={handleItemChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    name="end_time"
-                    value={newItem.end_time}
-                    onChange={handleItemChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
                 </div>
               </div>
 
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description *
-                </label>
-                <textarea
-                  name="description"
-                  value={newItem.description}
-                  onChange={handleItemChange}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Describe this activity"
-                />
-              </div>
+              {/* Step 4: Recurrence Type - Orange Section */}
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-semibold text-orange-900 mb-3">🔄 Recurrence Pattern</h4>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Recurrence Type
+                    </label>
+                    <select
+                      name="recurrence_type"
+                      value={newItem.recurrence_type || 'one-time'}
+                      onChange={handleItemChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="one-time">One-time Event</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="bi-weekly">Bi-weekly (Every 2 weeks)</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly (Every 3 months)</option>
+                    </select>
+                  </div>
 
-              {/* Color Picker */}
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  🎨 Color (Current: {newItem.color})
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {colorOptions.map((color) => {
-                    const isSelected = newItem.color === color.value;
-                    console.log(`Color ${color.value}: selected=${isSelected}, newItem.color=${newItem.color}`);
-                    return (
-                      <button
-                        key={color.value}
-                        type="button"
-                        onClick={() => handleItemChange({ target: { name: 'color', value: color.value } } as any)}
-                        className={`flex items-center space-x-2 p-2 rounded-md border-2 transition-all ${
-                          isSelected
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className={`w-4 h-4 rounded-full ${color.preview}`}></div>
-                        <span className="text-xs font-medium">{color.label}</span>
-                      </button>
-                    );
-                  })}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Pattern Preview
+                    </label>
+                    <div className="px-3 py-2 bg-orange-100 border border-orange-300 rounded-md text-orange-800 font-medium">
+                      {getRecurrenceLabel(newItem.recurrence_type || 'one-time', newItem.target_date || '')}
+                    </div>
+                  </div>
                 </div>
-                {newItem.color && (
-                  <div className="mt-2">
-                    <span className="text-xs text-gray-600">Preview: </span>
-                    <span className={`text-xs px-2 py-1 rounded ${getColorClasses(newItem.color).bgClass} ${getColorClasses(newItem.color).textClass}`}>
-                      {newItem.title || 'Sample Item'}
-                    </span>
+
+                {(newItem.recurrence_type !== 'one-time') && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      End Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      name="end_date"
+                      value={newItem.end_date || ''}
+                      onChange={handleItemChange}
+                      min={newItem.target_date || undefined}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Leave empty for indefinite recurrence
+                    </p>
                   </div>
                 )}
               </div>
 
-              <div className="flex justify-end space-x-3 mt-4">
+              {/* Step 5: Color Selection - Pink Section */}
+              <div className="bg-pink-50 border border-pink-200 rounded-lg p-4 mb-6">
+                <h4 className="text-sm font-semibold text-pink-900 mb-3">🎨 Color Theme</h4>
+                
+                <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color.value}
+                      type="button"
+                      onClick={() => setNewItem(prev => ({ ...prev, color: color.value }))}
+                      className={`flex flex-col items-center p-2 rounded-lg border-2 transition-all hover:scale-105 ${
+                        newItem.color === color.value 
+                          ? 'border-pink-500 bg-white shadow-md' 
+                          : 'border-gray-200 hover:border-pink-300'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-full ${color.swatch} mb-1`}></div>
+                      <span className="text-xs text-gray-600">{color.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Color Preview */}
+                <div className="mt-3">
+                  <p className="text-sm text-gray-600 mb-2">Preview:</p>
+                  <div className={`inline-block px-3 py-1 rounded text-sm font-medium ${getColorClasses(newItem.color).bgClass} ${getColorClasses(newItem.color).textClass}`}>
+                    {newItem.title || 'Your Activity'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={cancelEdit}
-                  className="btn btn-secondary"
+                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={addOrUpdateItem}
-                  className="btn btn-primary"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {editingItem !== null ? 'Update Item' : 'Add Item'}
+                  {editingItem !== null ? 'Update Item' : 'Add Schedule Item'}
                 </button>
               </div>
             </div>
