@@ -420,6 +420,25 @@ router.post('/', protect, [
     console.error('Create scheduler error:', error);
     console.error('Error details:', error.message);
     console.error('Error stack:', error.stack);
+    
+    // Check if it's a missing column error
+    if (error.message && error.message.includes('column') && error.message.includes('does not exist')) {
+      // Try to run migration
+      try {
+        console.log('🔄 Missing column detected, attempting automatic migration...');
+        const addMissingColumns = require('../../database/migrate-add-missing-columns');
+        await addMissingColumns();
+        console.log('✅ Migration completed, please retry the create');
+        return res.status(500).json({
+          success: false,
+          error: 'Database schema was outdated. Migration completed. Please retry your request.',
+          needsRetry: true
+        });
+      } catch (migrationError) {
+        console.error('❌ Automatic migration failed:', migrationError);
+      }
+    }
+    
     res.status(500).json({
       success: false,
       error: error.message || 'Server error',
@@ -561,6 +580,25 @@ router.put('/:id', protect, async (req, res) => {
     console.error('Update scheduler error:', error);
     console.error('Error details:', error.message);
     console.error('Error stack:', error.stack);
+    
+    // Check if it's a missing column error
+    if (error.message && error.message.includes('column') && error.message.includes('does not exist')) {
+      // Try to run migration
+      try {
+        console.log('🔄 Missing column detected, attempting automatic migration...');
+        const addMissingColumns = require('../../database/migrate-add-missing-columns');
+        await addMissingColumns();
+        console.log('✅ Migration completed, please retry the update');
+        return res.status(500).json({
+          success: false,
+          error: 'Database schema was outdated. Migration completed. Please retry your request.',
+          needsRetry: true
+        });
+      } catch (migrationError) {
+        console.error('❌ Automatic migration failed:', migrationError);
+      }
+    }
+    
     res.status(500).json({
       success: false,
       error: error.message || 'Server error',

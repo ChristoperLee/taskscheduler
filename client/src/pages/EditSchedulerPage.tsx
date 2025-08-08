@@ -421,6 +421,29 @@ const EditSchedulerPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Update scheduler failed:', error);
+      
+      // Check if we need to retry after migration
+      if (error?.needsRetry) {
+        console.log('Retrying update after migration...');
+        // Retry the update after a short delay
+        setTimeout(async () => {
+          try {
+            const result = await dispatch(updateScheduler({
+              id,
+              data: {
+                ...formData,
+                items
+              }
+            })).unwrap();
+            
+            if (result.data) {
+              navigate(`/scheduler/${result.data.id}`);
+            }
+          } catch (retryError: any) {
+            console.error('Retry failed:', retryError);
+          }
+        }, 1000);
+      }
     }
   };
 
