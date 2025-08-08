@@ -52,6 +52,10 @@ const createTables = async () => {
         recurrence_interval INTEGER DEFAULT 1,
         priority INTEGER DEFAULT 1,
         order_index INTEGER,
+        item_start_date DATE,
+        item_end_date DATE,
+        next_occurrence DATE,
+        color VARCHAR(20) DEFAULT 'blue',
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);

@@ -417,9 +417,12 @@ router.post('/', protect, [
 
   } catch (error) {
     console.error('Create scheduler error:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: error.message || 'Server error',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
