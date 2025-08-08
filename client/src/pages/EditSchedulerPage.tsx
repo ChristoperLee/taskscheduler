@@ -97,6 +97,7 @@ const EditSchedulerPage: React.FC = () => {
     order_index: 0,
     recurrence_type: 'one-time',
     recurrence_interval: 1,
+    priority: 1,
     color: 'blue'
   });
   const [isInitialized, setIsInitialized] = useState(false);
@@ -255,6 +256,7 @@ const EditSchedulerPage: React.FC = () => {
       order_index: item.order_index || 0,
       recurrence_type: item.recurrence_type || 'one-time',
       recurrence_interval: item.recurrence_interval || 1,
+      priority: item.priority || 1,
       color: item.color || 'blue'
     };
     
@@ -312,7 +314,7 @@ const EditSchedulerPage: React.FC = () => {
       start_time: newItem.start_time || '09:00',
       end_time: newItem.end_time || '10:00',
       order_index: editingItem !== null ? editingItem : items.length,
-      priority: 1,
+      priority: newItem.priority || 1,
       recurrence_type: newItem.recurrence_type || 'one-time',
       recurrence_interval: newItem.recurrence_interval || 1,
       color: newItem.color || 'blue'
@@ -345,6 +347,7 @@ const EditSchedulerPage: React.FC = () => {
       order_index: items.length + 1,
       recurrence_type: 'one-time',
       recurrence_interval: 1,
+      priority: 1,
       color: 'blue'
     });
     setShowAddItem(false);
@@ -368,6 +371,7 @@ const EditSchedulerPage: React.FC = () => {
       order_index: 0,
       recurrence_type: 'one-time',
       recurrence_interval: 1,
+      priority: 1,
       color: 'blue'
     });
     setErrors({});
