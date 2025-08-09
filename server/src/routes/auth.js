@@ -52,10 +52,10 @@ router.post('/register', [
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user
+    // Create user (default role is 'user')
     const result = await query(
-      'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email, created_at',
-      [username, email, hashedPassword]
+      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at',
+      [username, email, hashedPassword, 'user']
     );
 
     const user = result.rows[0];
@@ -74,6 +74,7 @@ router.post('/register', [
         id: user.id,
         username: user.username,
         email: user.email,
+        role: user.role || 'user',
         created_at: user.created_at
       }
     });
@@ -112,7 +113,7 @@ router.post('/login', [
 
     // Check if user exists
     const result = await query(
-      'SELECT id, username, email, password_hash, created_at FROM users WHERE email = $1',
+      'SELECT id, username, email, password_hash, role, is_active, created_at FROM users WHERE email = $1',
       [email]
     );
 
@@ -125,6 +126,14 @@ router.post('/login', [
 
     const user = result.rows[0];
 
+    // Check if user is active
+    if (user.is_active === false) {
+      return res.status(403).json({
+        success: false,
+        error: 'Account is disabled. Please contact administrator.'
+      });
+    }
+
     // Check password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
@@ -133,6 +142,12 @@ router.post('/login', [
         error: 'Invalid credentials'
       });
     }
+    
+    // Update last login
+    await query(
+      'UPDATE users SET last_login = NOW() WHERE id = $1',
+      [user.id]
+    );
 
     // Generate JWT token
     const token = jwt.sign(
@@ -148,6 +163,7 @@ router.post('/login', [
         id: user.id,
         username: user.username,
         email: user.email,
+        role: user.role || 'user',
         created_at: user.created_at
       }
     });

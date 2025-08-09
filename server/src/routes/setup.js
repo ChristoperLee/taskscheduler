@@ -3,6 +3,8 @@ const router = express.Router();
 const createTables = require('../../database/setup');
 const seedData = require('../../database/seed');
 const addMissingColumns = require('../../database/migrate-add-missing-columns');
+const addUserRoles = require('../../database/migrate-add-user-roles');
+const { createAdminUser } = require('../../database/create-admin');
 
 // Temporary setup route - REMOVE IN PRODUCTION
 router.get('/setup-database', async (req, res) => {
@@ -61,12 +63,32 @@ router.get('/migrate-database', async (req, res) => {
   try {
     console.log('🔄 Running database migration...');
     await addMissingColumns();
+    await addUserRoles();
     res.json({ 
       success: true, 
-      message: 'Database migration complete! Missing columns have been added.' 
+      message: 'Database migration complete! Missing columns and user roles have been added.' 
     });
   } catch (error) {
     console.error('Migration failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Create admin user route
+router.get('/create-admin', async (req, res) => {
+  try {
+    console.log('🔑 Creating admin user...');
+    await addUserRoles(); // Ensure role column exists first
+    await createAdminUser();
+    res.json({ 
+      success: true, 
+      message: 'Admin user created successfully! Username: admin, Password: admin123' 
+    });
+  } catch (error) {
+    console.error('Admin creation failed:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 

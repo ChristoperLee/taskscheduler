@@ -16,7 +16,13 @@ const createAdminUser = async () => {
     );
 
     if (existingUser.rows.length > 0) {
-      console.log('❌ Admin user already exists');
+      console.log('ℹ️ Admin user already exists, updating role to admin...');
+      // Update existing user to admin role
+      await query(
+        'UPDATE users SET role = $1 WHERE username = $2 OR email = $3',
+        ['admin', adminUsername, adminEmail]
+      );
+      console.log('✅ Updated existing user to admin role');
       return;
     }
 
