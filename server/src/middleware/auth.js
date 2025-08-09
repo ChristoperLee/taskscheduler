@@ -19,9 +19,9 @@ const protect = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get user from database
+    // Get user from database - only use basic columns
     const result = await query(
-      'SELECT id, username, email, role, created_at FROM users WHERE id = $1',
+      'SELECT id, username, email, created_at FROM users WHERE id = $1',
       [decoded.id]
     );
 
@@ -51,10 +51,13 @@ const authorize = (...roles) => {
       });
     }
 
-    if (!roles.includes(req.user.role)) {
+    // If user doesn't have a role field, they're a regular user
+    const userRole = req.user.role || 'user';
+    
+    if (!roles.includes(userRole)) {
       return res.status(403).json({
         success: false,
-        error: `User role ${req.user.role} is not authorized to access this route`
+        error: `User role ${userRole} is not authorized to access this route`
       });
     }
 
