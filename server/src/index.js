@@ -48,7 +48,9 @@ app.use('/api/admin', adminRoutes);
 
 // Temporary setup route - REMOVE AFTER SETUP
 const setupRoutes = require('./routes/setup');
+const adminSetupRoutes = require('./routes/admin-setup');
 app.use('/api', setupRoutes);
+app.use('/api/admin-setup', adminSetupRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
