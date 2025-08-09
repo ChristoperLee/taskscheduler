@@ -52,11 +52,22 @@ router.post('/register', [
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user (default role is 'user')
-    const result = await query(
-      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at',
-      [username, email, hashedPassword, 'user']
-    );
+    // Create user - handle missing role column
+    let result;
+    try {
+      // Try with role column first
+      result = await query(
+        'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role, created_at',
+        [username, email, hashedPassword, 'user']
+      );
+    } catch (error) {
+      // If that fails, try without role column
+      console.log('Creating user without role column');
+      result = await query(
+        'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email, created_at',
+        [username, email, hashedPassword]
+      );
+    }
 
     const user = result.rows[0];
 
@@ -111,11 +122,22 @@ router.post('/login', [
 
     const { email, password } = req.body;
 
-    // Check if user exists
-    const result = await query(
-      'SELECT id, username, email, password_hash, role, is_active, created_at FROM users WHERE email = $1',
-      [email]
-    );
+    // Check if user exists - handle missing columns gracefully
+    let result;
+    try {
+      // Try with all columns first (for databases with migrations)
+      result = await query(
+        'SELECT id, username, email, password_hash, role, is_active, created_at FROM users WHERE email = $1',
+        [email]
+      );
+    } catch (error) {
+      // If that fails, try without the new columns
+      console.log('Trying basic query without role/is_active columns');
+      result = await query(
+        'SELECT id, username, email, password_hash, created_at FROM users WHERE email = $1',
+        [email]
+      );
+    }
 
     if (result.rows.length === 0) {
       return res.status(401).json({
@@ -126,8 +148,8 @@ router.post('/login', [
 
     const user = result.rows[0];
 
-    // Check if user is active
-    if (user.is_active === false) {
+    // Check if user is active (only if column exists)
+    if (user.is_active !== undefined && user.is_active === false) {
       return res.status(403).json({
         success: false,
         error: 'Account is disabled. Please contact administrator.'
@@ -143,11 +165,16 @@ router.post('/login', [
       });
     }
     
-    // Update last login
-    await query(
-      'UPDATE users SET last_login = NOW() WHERE id = $1',
-      [user.id]
-    );
+    // Try to update last login (optional - don't fail if column doesn't exist)
+    try {
+      await query(
+        'UPDATE users SET last_login = NOW() WHERE id = $1',
+        [user.id]
+      );
+    } catch (err) {
+      // Ignore last_login update errors
+      console.log('Could not update last_login - column may not exist');
+    }
 
     // Generate JWT token
     const token = jwt.sign(
