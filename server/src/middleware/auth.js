@@ -19,11 +19,21 @@ const protect = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get user from database - only use basic columns
-    const result = await query(
-      'SELECT id, username, email, created_at FROM users WHERE id = $1',
-      [decoded.id]
-    );
+    // Get user from database - try to get role if it exists
+    let result;
+    try {
+      // First try with role column
+      result = await query(
+        'SELECT id, username, email, role, created_at FROM users WHERE id = $1',
+        [decoded.id]
+      );
+    } catch (error) {
+      // If role column doesn't exist, use basic query
+      result = await query(
+        'SELECT id, username, email, created_at FROM users WHERE id = $1',
+        [decoded.id]
+      );
+    }
 
     if (result.rows.length === 0) {
       return res.status(401).json({

@@ -110,11 +110,22 @@ router.post('/login', [
 
     const { email, password } = req.body;
 
-    // Check if user exists - use only basic columns that always exist
-    const result = await query(
-      'SELECT id, username, email, password_hash, created_at FROM users WHERE email = $1',
-      [email]
-    );
+    // Check if user exists - try to include role if it exists
+    let result;
+    try {
+      // Try with role column first
+      result = await query(
+        'SELECT id, username, email, password_hash, role, created_at FROM users WHERE email = $1',
+        [email]
+      );
+    } catch (error) {
+      // If role column doesn't exist, use basic query
+      console.log('Role column not found, using basic query');
+      result = await query(
+        'SELECT id, username, email, password_hash, created_at FROM users WHERE email = $1',
+        [email]
+      );
+    }
 
     if (result.rows.length === 0) {
       return res.status(401).json({
@@ -148,6 +159,7 @@ router.post('/login', [
         id: user.id,
         username: user.username,
         email: user.email,
+        role: user.role || 'user',
         created_at: user.created_at
       }
     });
