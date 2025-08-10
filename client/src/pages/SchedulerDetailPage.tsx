@@ -284,14 +284,14 @@ const SchedulerDetailPage: React.FC = () => {
                 </div>
               </div>
               
-              {/* Edit button - only show if user owns this scheduler */}
-              {user && currentScheduler.user_id === user.id && (
+              {/* Edit button - show if user owns this scheduler or is admin */}
+              {user && (currentScheduler.user_id === user.id || user.role === 'admin') && (
                 <Link 
                   to={`/scheduler/${currentScheduler.id}/edit`}
                   className="btn btn-primary text-sm"
                 >
                   <Edit className="w-4 h-4 mr-2" />
-                  Edit
+                  {user.role === 'admin' && currentScheduler.user_id !== user.id ? 'Edit (Admin)' : 'Edit'}
                 </Link>
               )}
             </div>

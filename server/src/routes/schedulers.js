@@ -461,11 +461,22 @@ router.put('/:id', protect, async (req, res) => {
       items 
     } = req.body;
 
-    // Check if scheduler exists and user owns it
-    const existingResult = await query(
-      'SELECT * FROM schedulers WHERE id = $1 AND user_id = $2',
-      [id, req.user.id]
-    );
+    // Check if scheduler exists
+    let existingResult;
+    
+    // Admin can edit any scheduler
+    if (req.user.role === 'admin') {
+      existingResult = await query(
+        'SELECT * FROM schedulers WHERE id = $1',
+        [id]
+      );
+    } else {
+      // Regular users can only edit their own schedulers
+      existingResult = await query(
+        'SELECT * FROM schedulers WHERE id = $1 AND user_id = $2',
+        [id, req.user.id]
+      );
+    }
 
     if (existingResult.rows.length === 0) {
       return res.status(404).json({
@@ -614,11 +625,22 @@ router.delete('/:id', protect, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if scheduler exists and user owns it
-    const existingResult = await query(
-      'SELECT * FROM schedulers WHERE id = $1 AND user_id = $2',
-      [id, req.user.id]
-    );
+    // Check if scheduler exists
+    let existingResult;
+    
+    // Admin can edit any scheduler
+    if (req.user.role === 'admin') {
+      existingResult = await query(
+        'SELECT * FROM schedulers WHERE id = $1',
+        [id]
+      );
+    } else {
+      // Regular users can only edit their own schedulers
+      existingResult = await query(
+        'SELECT * FROM schedulers WHERE id = $1 AND user_id = $2',
+        [id, req.user.id]
+      );
+    }
 
     if (existingResult.rows.length === 0) {
       return res.status(404).json({

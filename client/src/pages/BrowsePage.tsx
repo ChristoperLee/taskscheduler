@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '../store';
 import { fetchAllSchedulers } from '../store/slices/schedulerSlice';
-import { Clock, User, Heart, Share2, Eye, Search, Filter } from 'lucide-react';
+import { Clock, User, Heart, Share2, Eye, Search, Filter, Edit } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const BrowsePage: React.FC = () => {
   const dispatch = useAppDispatch();
   const { schedulers, loading } = useSelector((state: RootState) => state.schedulers);
+  const { user } = useSelector((state: RootState) => state.auth);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
 
@@ -184,12 +185,23 @@ const BrowsePage: React.FC = () => {
                     </div>
                   </div>
                   
-                  <Link 
-                    to={`/scheduler/${scheduler.id}`}
-                    className="btn btn-primary text-sm"
-                  >
-                    View Schedule
-                  </Link>
+                  <div className="flex space-x-2">
+                    <Link 
+                      to={`/scheduler/${scheduler.id}`}
+                      className="btn btn-primary text-sm"
+                    >
+                      View
+                    </Link>
+                    {user && user.role === 'admin' && (
+                      <Link 
+                        to={`/scheduler/${scheduler.id}/edit`}
+                        className="btn btn-secondary text-sm"
+                        title="Edit as Admin"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
