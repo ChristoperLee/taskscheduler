@@ -525,7 +525,7 @@ users (
 
 ### 12. Context Management & Project Continuity
 
-#### Current Session Summary (August 2, 2025)
+#### Current Session Summary (August 12, 2025)
 This development session has reached context limits with auto-compact at 3%. All critical project information has been preserved in documentation files for seamless development continuation.
 
 #### 📁 Key Documentation Files Created/Updated
@@ -553,9 +553,9 @@ This development session has reached context limits with auto-compact at 3%. All
 cd /Users/chrislee/Project/TaskScheduler
 
 # Current Services
-Frontend: http://localhost:3000
-Backend: http://localhost:5001
-Database: PostgreSQL taskscheduler (backed up)
+Frontend: http://localhost:3000 (GitHub Pages: https://christoperlee.github.io/taskscheduler)
+Backend: http://localhost:5001 (Railway: https://taskscheduler-production-5c67.up.railway.app)
+Database: PostgreSQL taskscheduler (local) and Railway PostgreSQL (production)
 
 # Start Development
 npm run dev
@@ -568,15 +568,46 @@ npm run dev
 - **Dashboard**: `/admin` route after login
 
 ##### **3. Database Management**
+
+###### **Local Database Operations**
 ```bash
 # Create Backup
-npm run backup-db
+npm run backup-db  # Legacy method
+npm run backup-local  # New comprehensive backup
 
 # Restore Database
-npm run restore-db
+npm run restore-db  # Legacy method
+npm run backup-restore <filename>  # New restore method
 
 # Check Database Status
 psql -d taskscheduler -U chrislee -c "SELECT COUNT(*) FROM schedulers;"
+```
+
+###### **Production Data Sync (NEW)**
+```bash
+# Pull all production data to local
+cd server
+npm run sync-data -- --backup --clear --preserve-ids
+
+# Export production data only
+npm run export-prod
+
+# Import to local database
+npm run import-local
+
+# Selective sync options
+npm run sync-data -- --user-id 1  # Sync specific user
+npm run sync-data -- --scheduler-id 5  # Sync specific scheduler
+npm run sync-data -- --date-from 2024-01-01  # Sync by date range
+
+# List available backups
+npm run backup-list
+```
+
+###### **Environment Setup for Data Sync**
+```env
+# Add to server/.env
+PRODUCTION_DATABASE_URL=<get-from-railway-dashboard>
 ```
 
 ##### **4. Key Project Files Reference**
@@ -640,7 +671,74 @@ When starting a new development session:
 
 ---
 
-**Last Updated**: August 2, 2025 (Pre-Auto-Compact)
-**Development Status**: Ready for continued development
-**All Data**: Preserved and backed up
+### 13. Production Deployment & Data Management
+
+#### 13.1 Production Environment
+- **Frontend**: GitHub Pages at https://christoperlee.github.io/taskscheduler
+- **Backend**: Railway at https://taskscheduler-production-5c67.up.railway.app
+- **Database**: PostgreSQL on Railway with automatic backups
+
+#### 13.2 Database Sync Tools (NEW)
+Comprehensive data management tools have been added to facilitate development and testing:
+
+##### **Available Tools**
+1. **export-data.js** - Export from production database
+   - Supports anonymization for privacy
+   - Selective export by table or conditions
+   - JSON format for easy manipulation
+
+2. **import-data.js** - Import to local database
+   - Clear existing data option
+   - Preserve or regenerate IDs
+   - Foreign key constraint handling
+
+3. **sync-data.js** - One-command sync
+   - Automatic backup before sync
+   - Selective sync by user/scheduler/date
+   - Production to local synchronization
+
+4. **backup-local.js** - Local database backups
+   - Automatic rotation (keep last N backups)
+   - Easy restore functionality
+   - List and manage backups
+
+##### **Quick Commands**
+```bash
+# Full production to local sync
+cd server
+npm run sync-data -- --backup --clear --preserve-ids
+
+# Export with anonymization
+npm run export-prod -- --anonymize
+
+# Selective sync
+npm run sync-data -- --user-id 1
+npm run sync-data -- --scheduler-id 5
+npm run sync-data -- --date-from 2024-01-01
+
+# Backup management
+npm run backup-local  # Create backup
+npm run backup-list  # List backups
+npm run backup-restore <filename>  # Restore backup
+```
+
+##### **Data Directories**
+- `server/database/exports/` - Production exports (gitignored)
+- `server/database/backups/` - Local backups (gitignored)
+
+#### 13.3 Admin System Updates
+- Admin can now modify any scheduler (not just delete)
+- Admin role verification tools available
+- Test page at `/test-admin.html` for debugging role issues
+
+#### 13.4 Recent Fixes & Updates
+1. **Database Schema**: Added missing columns via migration scripts
+2. **Authentication**: Made backward compatible with role column
+3. **GitHub Pages**: Fixed React Router basename for subdirectory
+4. **Admin Features**: Complete CRUD for any scheduler as admin
+5. **Data Tools**: Comprehensive export/import/sync utilities
+
+**Last Updated**: August 12, 2025
+**Development Status**: Ready for continued development with full data sync capabilities
+**All Data**: Preserved, backed up, and syncable between environments
 
