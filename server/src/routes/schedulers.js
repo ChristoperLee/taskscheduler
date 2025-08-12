@@ -387,9 +387,9 @@ router.post('/', protect, [
           INSERT INTO scheduler_items (
             scheduler_id, title, description, start_time, end_time, 
             day_of_week, start_date, end_date, priority, order_index,
-            recurrence_type, recurrence_interval, item_start_date, item_end_date, next_occurrence, color
+            recurrence_type, recurrence_interval, item_start_date, item_end_date, next_occurrence, color, exclusion_dates
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         `, [
           scheduler.id,
           item.title,
@@ -406,7 +406,8 @@ router.post('/', protect, [
           item.item_start_date,
           item.item_end_date,
           next_occurrence,
-          item.color || 'blue'
+          item.color || 'blue',
+          JSON.stringify(item.exclusion_dates || [])
         ]);
       }
     }
@@ -551,9 +552,9 @@ router.put('/:id', protect, async (req, res) => {
             INSERT INTO scheduler_items (
               scheduler_id, title, description, start_time, end_time, 
               day_of_week, start_date, end_date, priority, order_index,
-              recurrence_type, recurrence_interval, item_start_date, item_end_date, next_occurrence, color
+              recurrence_type, recurrence_interval, item_start_date, item_end_date, next_occurrence, color, exclusion_dates
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
           `, [
             scheduler.id,
             item.title,
@@ -570,7 +571,8 @@ router.put('/:id', protect, async (req, res) => {
             itemStartDate,
             itemEndDate,
             next_occurrence,
-            item.color || 'blue'
+            item.color || 'blue',
+            JSON.stringify(item.exclusion_dates || [])
           ]);
           
           console.log(`✅ Successfully inserted item ${i + 1}`);

@@ -26,6 +26,7 @@ export interface SchedulerItem {
   priority: number;
   order_index?: number;
   color?: string;
+  exclusion_dates?: string[];
   created_at: string;
 }
 

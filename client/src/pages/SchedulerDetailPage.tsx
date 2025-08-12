@@ -7,6 +7,7 @@ import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid
 import LoadingSpinner from '../components/LoadingSpinner';
 import RecurrenceDisplay from '../components/RecurrenceDisplay';
 import { SchedulerItem } from '../types';
+import { API_BASE_URL } from '../config/api';
 
 // Helper function to get color classes with explicit class mapping
 const getColorClasses = (color?: string) => {
@@ -63,6 +64,14 @@ const SchedulerDetailPage: React.FC = () => {
 
   // Helper function to check if a recurring item occurs on a specific date
   const itemOccursOnDate = (item: SchedulerItem, targetDate: Date): boolean => {
+    // First check if this date is excluded
+    if (item.exclusion_dates && Array.isArray(item.exclusion_dates)) {
+      const targetDateStr = targetDate.toISOString().split('T')[0];
+      if (item.exclusion_dates.includes(targetDateStr)) {
+        return false; // This date is excluded
+      }
+    }
+    
     if (!item.recurrence_type || item.recurrence_type === 'one-time') {
       // One-time events: check if it matches the specific date
       if (item.start_date) {
@@ -459,11 +468,32 @@ const SchedulerDetailPage: React.FC = () => {
                   
                   if (item && currentScheduler) {
                     if (deleteType === 'single' && date) {
-                      // For single occurrence deletion, we need to create an exclusion
-                      // This would require backend support for exclusion dates
-                      // For now, we'll just remove the item from the current view
-                      console.log('Delete single occurrence:', item.id, 'on', date);
-                      alert('Single occurrence deletion is not yet implemented. This feature requires backend support for exclusion dates.');
+                      // For single occurrence deletion, add an exclusion date
+                      try {
+                        const exclusionDate = date.toISOString().split('T')[0];
+                        
+                        // Call the exclusion date API
+                        const response = await fetch(`${API_BASE_URL}/scheduler-items/${item.id}/exclude-date`, {
+                          method: 'PUT',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                          },
+                          body: JSON.stringify({ date: exclusionDate })
+                        });
+                        
+                        if (!response.ok) {
+                          throw new Error('Failed to exclude date');
+                        }
+                        
+                        // Refresh the scheduler to get updated data
+                        if (id) {
+                          dispatch(fetchSchedulerById(id));
+                        }
+                      } catch (error) {
+                        console.error('Failed to exclude date:', error);
+                        alert('Failed to delete this occurrence. Please try again.');
+                      }
                     } else {
                       // Delete the entire item
                       try {
