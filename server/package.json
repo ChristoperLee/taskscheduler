@@ -9,7 +9,13 @@
     "setup-db": "node database/setup.js",
     "seed": "node database/seed.js",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "export-prod": "node database/export-data.js",
+    "import-local": "node database/import-data.js",
+    "sync-data": "node database/sync-data.js",
+    "backup-local": "node database/backup-local.js",
+    "backup-list": "node database/backup-local.js list",
+    "backup-restore": "node database/backup-local.js restore"
   },
   "dependencies": {
     "express": "^4.18.2",

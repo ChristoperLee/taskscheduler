@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Test</title>
+</head>
+<body>
+    <h1>Admin Role Test</h1>
+    <div id="result"></div>
+    
+    <script>
+        // Get token from localStorage
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+            document.getElementById('result').innerHTML = '<p style="color: red;">No token found. Please login first.</p>';
+        } else {
+            // Decode token (basic base64 decode)
+            try {
+                const parts = token.split('.');
+                const payload = JSON.parse(atob(parts[1]));
+                
+                // Get user info from API
+                fetch('https://taskscheduler-production-5c67.up.railway.app/api/auth/me', {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('result').innerHTML = `
+                        <h2>Your User Info:</h2>
+                        <pre>${JSON.stringify(data.user, null, 2)}</pre>
+                        <p><strong>Role: ${data.user?.role || 'NOT SET'}</strong></p>
+                        <p>Is Admin: ${data.user?.role === 'admin' ? 'YES ✅' : 'NO ❌'}</p>
+                    `;
+                })
+                .catch(err => {
+                    document.getElementById('result').innerHTML = '<p style="color: red;">Error fetching user info: ' + err + '</p>';
+                });
+            } catch (e) {
+                document.getElementById('result').innerHTML = '<p style="color: red;">Invalid token</p>';
+            }
+        }
+    </script>
+</body>
+</html>

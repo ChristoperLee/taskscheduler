@@ -1,0 +1,7 @@
+# Ignore all exports and backups
+exports/
+backups/
+
+# But keep the directories
+!exports/.gitkeep
+!backups/.gitkeep
