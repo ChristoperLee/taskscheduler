@@ -45,6 +45,7 @@ export interface Scheduler {
   creator_name?: string;
   items?: SchedulerItem[];
   popularity_score?: number;
+  occurrences?: Record<string, any>;
 }
 
 // View types

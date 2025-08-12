@@ -5,23 +5,12 @@ const { protect } = require('../middleware/auth');
 
 const router = express.Router();
 
-// @route   PUT /api/scheduler-items/:id/exclude-date
-// @desc    Add an exclusion date to a recurring scheduler item
+// @route   DELETE /api/scheduler-items/:id/occurrence/:date
+// @desc    Delete a specific occurrence of a scheduler item
 // @access  Private
-router.put('/:id/exclude-date', protect, [
-  body('date').isISO8601().withMessage('Valid date is required')
-], async (req, res) => {
+router.delete('/:id/occurrence/:date', protect, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array()
-      });
-    }
-
-    const { id } = req.params;
-    const { date } = req.body;
+    const { id, date } = req.params;
 
     // Get the scheduler item and verify ownership
     const itemResult = await query(`
@@ -49,38 +38,39 @@ router.put('/:id/exclude-date', protect, [
     }
 
     // Parse the date to ensure consistent format (YYYY-MM-DD)
-    const exclusionDate = new Date(date).toISOString().split('T')[0];
+    const occurrenceDate = new Date(date).toISOString().split('T')[0];
 
-    // Get current exclusion dates
-    let exclusionDates = item.exclusion_dates || [];
+    // Check if an occurrence record exists
+    const existingOccurrence = await query(`
+      SELECT * FROM scheduler_item_occurrences 
+      WHERE scheduler_item_id = $1 AND occurrence_date = $2
+    `, [id, occurrenceDate]);
 
-    // Add the new date if it's not already excluded
-    if (!exclusionDates.includes(exclusionDate)) {
-      exclusionDates.push(exclusionDate);
-      
-      // Update the item with new exclusion dates
-      const updateResult = await query(`
-        UPDATE scheduler_items 
-        SET exclusion_dates = $1
-        WHERE id = $2
-        RETURNING *
-      `, [JSON.stringify(exclusionDates), id]);
-
-      res.json({
-        success: true,
-        data: updateResult.rows[0],
-        message: `Date ${exclusionDate} excluded from recurring item`
-      });
+    if (existingOccurrence.rows.length > 0) {
+      // Update existing occurrence to mark as deleted
+      await query(`
+        UPDATE scheduler_item_occurrences 
+        SET is_deleted = true, updated_at = NOW()
+        WHERE scheduler_item_id = $1 AND occurrence_date = $2
+      `, [id, occurrenceDate]);
     } else {
-      res.json({
-        success: true,
-        message: 'Date already excluded',
-        data: item
-      });
+      // Create a new occurrence record marked as deleted
+      await query(`
+        INSERT INTO scheduler_item_occurrences 
+        (scheduler_item_id, occurrence_date, is_deleted)
+        VALUES ($1, $2, true)
+        ON CONFLICT (scheduler_item_id, occurrence_date) 
+        DO UPDATE SET is_deleted = true, updated_at = NOW()
+      `, [id, occurrenceDate]);
     }
 
+    res.json({
+      success: true,
+      message: `Occurrence on ${occurrenceDate} has been deleted`
+    });
+
   } catch (error) {
-    console.error('Add exclusion date error:', error);
+    console.error('Delete occurrence error:', error);
     res.status(500).json({
       success: false,
       error: 'Server error'
@@ -88,23 +78,13 @@ router.put('/:id/exclude-date', protect, [
   }
 });
 
-// @route   DELETE /api/scheduler-items/:id/exclude-date
-// @desc    Remove an exclusion date from a recurring scheduler item
+// @route   PUT /api/scheduler-items/:id/occurrence/:date
+// @desc    Restore or modify a specific occurrence
 // @access  Private
-router.delete('/:id/exclude-date', protect, [
-  body('date').isISO8601().withMessage('Valid date is required')
-], async (req, res) => {
+router.put('/:id/occurrence/:date', protect, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array()
-      });
-    }
-
-    const { id } = req.params;
-    const { date } = req.body;
+    const { id, date } = req.params;
+    const { restore, modifications } = req.body;
 
     // Get the scheduler item and verify ownership
     const itemResult = await query(`
@@ -131,39 +111,139 @@ router.delete('/:id/exclude-date', protect, [
       });
     }
 
-    // Parse the date to ensure consistent format
-    const exclusionDate = new Date(date).toISOString().split('T')[0];
+    const occurrenceDate = new Date(date).toISOString().split('T')[0];
 
-    // Get current exclusion dates
-    let exclusionDates = item.exclusion_dates || [];
-
-    // Remove the date if it exists
-    const newExclusionDates = exclusionDates.filter(d => d !== exclusionDate);
-    
-    if (newExclusionDates.length !== exclusionDates.length) {
-      // Update the item with new exclusion dates
-      const updateResult = await query(`
-        UPDATE scheduler_items 
-        SET exclusion_dates = $1
-        WHERE id = $2
-        RETURNING *
-      `, [JSON.stringify(newExclusionDates), id]);
-
+    if (restore) {
+      // Restore a deleted occurrence
+      await query(`
+        UPDATE scheduler_item_occurrences 
+        SET is_deleted = false, updated_at = NOW()
+        WHERE scheduler_item_id = $1 AND occurrence_date = $2
+      `, [id, occurrenceDate]);
+      
       res.json({
         success: true,
-        data: updateResult.rows[0],
-        message: `Date ${exclusionDate} removed from exclusions`
+        message: `Occurrence on ${occurrenceDate} has been restored`
       });
+    } else if (modifications) {
+      // Modify a specific occurrence
+      const updateFields = [];
+      const values = [];
+      let paramCount = 2;
+
+      if (modifications.title !== undefined) {
+        updateFields.push(`modified_title = $${++paramCount}`);
+        values.push(modifications.title);
+      }
+      if (modifications.description !== undefined) {
+        updateFields.push(`modified_description = $${++paramCount}`);
+        values.push(modifications.description);
+      }
+      if (modifications.start_time !== undefined) {
+        updateFields.push(`modified_start_time = $${++paramCount}`);
+        values.push(modifications.start_time);
+      }
+      if (modifications.end_time !== undefined) {
+        updateFields.push(`modified_end_time = $${++paramCount}`);
+        values.push(modifications.end_time);
+      }
+      if (modifications.color !== undefined) {
+        updateFields.push(`modified_color = $${++paramCount}`);
+        values.push(modifications.color);
+      }
+      if (modifications.notes !== undefined) {
+        updateFields.push(`notes = $${++paramCount}`);
+        values.push(modifications.notes);
+      }
+
+      if (updateFields.length > 0) {
+        const existingOccurrence = await query(`
+          SELECT * FROM scheduler_item_occurrences 
+          WHERE scheduler_item_id = $1 AND occurrence_date = $2
+        `, [id, occurrenceDate]);
+
+        if (existingOccurrence.rows.length > 0) {
+          // Update existing occurrence
+          await query(`
+            UPDATE scheduler_item_occurrences 
+            SET ${updateFields.join(', ')}, is_modified = true, updated_at = NOW()
+            WHERE scheduler_item_id = $1 AND occurrence_date = $2
+          `, [id, occurrenceDate, ...values]);
+        } else {
+          // Create new occurrence with modifications
+          await query(`
+            INSERT INTO scheduler_item_occurrences 
+            (scheduler_item_id, occurrence_date, is_modified, ${updateFields.map(f => f.split(' = ')[0]).join(', ')})
+            VALUES ($1, $2, true, ${values.map((_, i) => `$${i + 3}`).join(', ')})
+          `, [id, occurrenceDate, ...values]);
+        }
+
+        res.json({
+          success: true,
+          message: `Occurrence on ${occurrenceDate} has been modified`
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: 'No modifications provided'
+        });
+      }
     } else {
-      res.json({
-        success: true,
-        message: 'Date was not excluded',
-        data: item
+      res.status(400).json({
+        success: false,
+        error: 'No action specified (restore or modifications required)'
       });
     }
 
   } catch (error) {
-    console.error('Remove exclusion date error:', error);
+    console.error('Update occurrence error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
+// @route   GET /api/scheduler-items/:id/occurrences
+// @desc    Get all occurrences for a scheduler item (including deleted/modified)
+// @access  Public
+router.get('/:id/occurrences', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_date, end_date, include_deleted } = req.query;
+
+    let queryStr = `
+      SELECT * FROM scheduler_item_occurrences 
+      WHERE scheduler_item_id = $1
+    `;
+    const params = [id];
+    let paramCount = 1;
+
+    if (start_date) {
+      queryStr += ` AND occurrence_date >= $${++paramCount}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      queryStr += ` AND occurrence_date <= $${++paramCount}`;
+      params.push(end_date);
+    }
+
+    if (!include_deleted || include_deleted !== 'true') {
+      queryStr += ` AND is_deleted = false`;
+    }
+
+    queryStr += ` ORDER BY occurrence_date`;
+
+    const result = await query(queryStr, params);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('Get occurrences error:', error);
     res.status(500).json({
       success: false,
       error: 'Server error'

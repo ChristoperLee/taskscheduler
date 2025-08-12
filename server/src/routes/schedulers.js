@@ -172,7 +172,43 @@ router.get('/:id', async (req, res) => {
       ORDER BY day_of_week, start_time, order_index
     `, [id]);
 
+    // For each item, get deleted occurrences and add them to exclusion_dates
+    for (let item of itemsResult.rows) {
+      // Get deleted occurrences for this item
+      const deletedOccurrences = await query(`
+        SELECT occurrence_date 
+        FROM scheduler_item_occurrences 
+        WHERE scheduler_item_id = $1 AND is_deleted = true
+      `, [item.id]);
+      
+      // Convert to exclusion_dates array for backward compatibility
+      item.exclusion_dates = deletedOccurrences.rows.map(occ => {
+        const date = new Date(occ.occurrence_date);
+        return date.toISOString().split('T')[0];
+      });
+    }
+
     scheduler.items = itemsResult.rows;
+
+    // Get all modified/deleted occurrences for this scheduler
+    const occurrencesResult = await query(`
+      SELECT sio.* 
+      FROM scheduler_item_occurrences sio
+      JOIN scheduler_items si ON sio.scheduler_item_id = si.id
+      WHERE si.scheduler_id = $1
+      AND (sio.is_deleted = true OR sio.is_modified = true)
+    `, [id]);
+
+    // Create a map of occurrences by item_id and date
+    const occurrencesMap = {};
+    for (const occ of occurrencesResult.rows) {
+      // Format date as YYYY-MM-DD
+      const dateStr = new Date(occ.occurrence_date).toISOString().split('T')[0];
+      const key = `${occ.scheduler_item_id}_${dateStr}`;
+      occurrencesMap[key] = occ;
+    }
+    
+    scheduler.occurrences = occurrencesMap;
 
     res.json({
       success: true,
@@ -296,6 +332,24 @@ router.get('/:id/monthly/:month', async (req, res) => {
       ORDER BY si.day_of_week, si.start_time, si.order_index
     `, [id]);
 
+    // Get all occurrences for this month
+    const occurrencesResult = await query(`
+      SELECT sio.*, si.day_of_week 
+      FROM scheduler_item_occurrences sio
+      JOIN scheduler_items si ON sio.scheduler_item_id = si.id
+      WHERE si.scheduler_id = $1 
+      AND sio.occurrence_date >= $2 
+      AND sio.occurrence_date <= $3
+      AND (sio.is_deleted = true OR sio.is_modified = true)
+    `, [id, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]);
+
+    // Create a map of occurrences by item_id and date
+    const occurrencesMap = {};
+    for (const occ of occurrencesResult.rows) {
+      const key = `${occ.scheduler_item_id}_${occ.occurrence_date}`;
+      occurrencesMap[key] = occ;
+    }
+
     // Group items by day of week
     const monthlyData = {};
     for (let i = 0; i < 7; i++) {
@@ -311,7 +365,8 @@ router.get('/:id/monthly/:month', async (req, res) => {
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],
         daysInMonth: endDate.getDate(),
-        days: monthlyData
+        days: monthlyData,
+        occurrences: occurrencesMap
       }
     });
 

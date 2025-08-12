@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '../store';
 import { fetchSchedulerById, updateScheduler } from '../store/slices/schedulerSlice';
-import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid, Clock, Edit, ChevronLeft, ChevronRight, CalendarCheck, X, Filter, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
+import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid, Clock, Edit, Edit2, ChevronLeft, ChevronRight, CalendarCheck, X, Filter, ChevronDown, Trash2, AlertTriangle, XCircle } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import RecurrenceDisplay from '../components/RecurrenceDisplay';
 import { SchedulerItem } from '../types';
@@ -50,6 +50,20 @@ const SchedulerDetailPage: React.FC = () => {
     date?: Date;
     deleteType?: 'single' | 'all';
   }>({ isOpen: false, item: null });
+  
+  const [editOccurrence, setEditOccurrence] = useState<{
+    isOpen: boolean;
+    item: SchedulerItem | null;
+    date: string;
+    modifications: {
+      title?: string;
+      description?: string;
+      start_time?: string;
+      end_time?: string;
+      color?: string;
+      notes?: string;
+    };
+  }>({ isOpen: false, item: null, date: '', modifications: {} });
 
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -64,13 +78,18 @@ const SchedulerDetailPage: React.FC = () => {
 
   // Helper function to check if a recurring item occurs on a specific date
   const itemOccursOnDate = (item: SchedulerItem, targetDate: Date): boolean => {
-    // First check if this date is excluded
+    // For now, we'll check both exclusion_dates (old system) and occurrences (new system)
+    // This provides backward compatibility while we transition
     if (item.exclusion_dates && Array.isArray(item.exclusion_dates)) {
       const targetDateStr = targetDate.toISOString().split('T')[0];
       if (item.exclusion_dates.includes(targetDateStr)) {
         return false; // This date is excluded
       }
     }
+    
+    // Check if there's a deleted occurrence record for this date
+    // Note: This would ideally be fetched from the backend, but for now we'll rely on exclusion_dates
+    // The backend will need to populate exclusion_dates from the occurrences table
     
     if (!item.recurrence_type || item.recurrence_type === 'one-time') {
       // One-time events: check if it matches the specific date
@@ -379,6 +398,20 @@ const SchedulerDetailPage: React.FC = () => {
             onDeleteItem={(item, date, deleteType) => {
               setDeleteConfirmation({ isOpen: true, item, date, deleteType });
             }}
+            onEditItem={(item, date) => {
+              setEditOccurrence({ 
+                isOpen: true, 
+                item, 
+                date,
+                modifications: {
+                  title: item.title,
+                  description: item.description,
+                  start_time: item.start_time,
+                  end_time: item.end_time,
+                  color: item.color
+                }
+              });
+            }}
           />
         )}
         
@@ -391,6 +424,176 @@ const SchedulerDetailPage: React.FC = () => {
           />
         )}
       </div>
+
+      {/* Edit Occurrence Dialog */}
+      {editOccurrence.isOpen && editOccurrence.item && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Edit Occurrence</h3>
+              <button
+                onClick={() => setEditOccurrence({ isOpen: false, item: null, date: '', modifications: {} })}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <XCircle className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="mb-2">
+              <p className="text-sm text-gray-600">
+                Editing occurrence on {new Date(editOccurrence.date).toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={editOccurrence.modifications?.title || ''}
+                  onChange={(e) => setEditOccurrence(prev => ({
+                    ...prev,
+                    modifications: { ...prev.modifications, title: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={editOccurrence.modifications?.description || ''}
+                  onChange={(e) => setEditOccurrence(prev => ({
+                    ...prev,
+                    modifications: { ...prev.modifications, description: e.target.value }
+                  }))}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Time */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    value={editOccurrence.modifications?.start_time || ''}
+                    onChange={(e) => setEditOccurrence(prev => ({
+                      ...prev,
+                      modifications: { ...prev.modifications, start_time: e.target.value }
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                  <input
+                    type="time"
+                    value={editOccurrence.modifications?.end_time || ''}
+                    onChange={(e) => setEditOccurrence(prev => ({
+                      ...prev,
+                      modifications: { ...prev.modifications, end_time: e.target.value }
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Color */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                <select
+                  value={editOccurrence.modifications?.color || 'blue'}
+                  onChange={(e) => setEditOccurrence(prev => ({
+                    ...prev,
+                    modifications: { ...prev.modifications, color: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="blue">Blue</option>
+                  <option value="green">Green</option>
+                  <option value="red">Red</option>
+                  <option value="yellow">Yellow</option>
+                  <option value="purple">Purple</option>
+                  <option value="pink">Pink</option>
+                  <option value="indigo">Indigo</option>
+                  <option value="gray">Gray</option>
+                </select>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (for this occurrence only)</label>
+                <textarea
+                  value={editOccurrence.modifications?.notes || ''}
+                  onChange={(e) => setEditOccurrence(prev => ({
+                    ...prev,
+                    modifications: { ...prev.modifications, notes: e.target.value }
+                  }))}
+                  rows={2}
+                  placeholder="Add any notes specific to this occurrence..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setEditOccurrence({ isOpen: false, item: null, date: '', modifications: {} })}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const item = editOccurrence.item;
+                  const date = editOccurrence.date;
+                  const modifications = editOccurrence.modifications;
+                  
+                  if (item && date && modifications) {
+                    try {
+                      // Call the occurrence modification API
+                      const response = await fetch(`${API_BASE_URL}/scheduler-items/${item.id}/occurrence/${date}`, {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: JSON.stringify({ modifications })
+                      });
+                      
+                      if (!response.ok) {
+                        throw new Error('Failed to update occurrence');
+                      }
+                      
+                      // Refresh the scheduler to get updated data
+                      if (id) {
+                        dispatch(fetchSchedulerById(id));
+                      }
+                      
+                      setEditOccurrence({ isOpen: false, item: null, date: '', modifications: {} });
+                    } catch (error) {
+                      console.error('Failed to update occurrence:', error);
+                      alert('Failed to update this occurrence. Please try again.');
+                    }
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       {deleteConfirmation.isOpen && deleteConfirmation.item && (
@@ -468,22 +671,21 @@ const SchedulerDetailPage: React.FC = () => {
                   
                   if (item && currentScheduler) {
                     if (deleteType === 'single' && date) {
-                      // For single occurrence deletion, add an exclusion date
+                      // For single occurrence deletion, delete the specific occurrence
                       try {
-                        const exclusionDate = date.toISOString().split('T')[0];
+                        const occurrenceDate = date.toISOString().split('T')[0];
                         
-                        // Call the exclusion date API
-                        const response = await fetch(`${API_BASE_URL}/scheduler-items/${item.id}/exclude-date`, {
-                          method: 'PUT',
+                        // Call the occurrence deletion API
+                        const response = await fetch(`${API_BASE_URL}/scheduler-items/${item.id}/occurrence/${occurrenceDate}`, {
+                          method: 'DELETE',
                           headers: {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${localStorage.getItem('token')}`
-                          },
-                          body: JSON.stringify({ date: exclusionDate })
+                          }
                         });
                         
                         if (!response.ok) {
-                          throw new Error('Failed to exclude date');
+                          throw new Error('Failed to delete occurrence');
                         }
                         
                         // Refresh the scheduler to get updated data
@@ -491,7 +693,7 @@ const SchedulerDetailPage: React.FC = () => {
                           dispatch(fetchSchedulerById(id));
                         }
                       } catch (error) {
-                        console.error('Failed to exclude date:', error);
+                        console.error('Failed to delete occurrence:', error);
                         alert('Failed to delete this occurrence. Please try again.');
                       }
                     } else {
@@ -773,7 +975,8 @@ const MonthlyView: React.FC<{
   parseTime: (time: string) => number;
   user: any;
   onDeleteItem: (item: SchedulerItem, date?: Date, deleteType?: 'single' | 'all') => void;
-}> = ({ scheduler, selectedDate, setSelectedDate, daysOfWeek, getItemsForDate, formatTime, parseTime, user, onDeleteItem }) => {
+  onEditItem?: (item: SchedulerItem, date: string) => void;
+}> = ({ scheduler, selectedDate, setSelectedDate, daysOfWeek, getItemsForDate, formatTime, parseTime, user, onDeleteItem, onEditItem }) => {
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth();
   
@@ -1160,20 +1363,41 @@ const MonthlyView: React.FC<{
                       </div>
                       <div className="space-y-1">
                         {dayItems.slice(0, 2).map((item) => {
-                          const colorClasses = getColorClasses(item.color);
-                          const finalClassName = `text-xs ${colorClasses.bgClass} ${colorClasses.textClass} px-1 py-0.5 rounded truncate flex items-center`;
+                          // Check if this item has been modified for this date
+                          const occurrenceKey = `${item.id}_${currentDate?.toISOString().split('T')[0]}`;
+                          const occurrence = scheduler?.occurrences?.[occurrenceKey];
+                          
+                          // Use modified values if they exist
+                          const displayTitle = occurrence?.is_modified && occurrence?.modified_title 
+                            ? occurrence.modified_title 
+                            : item.title;
+                          const displayTime = occurrence?.is_modified && occurrence?.modified_start_time 
+                            ? occurrence.modified_start_time 
+                            : item.start_time;
+                          const displayColor = occurrence?.is_modified && occurrence?.modified_color 
+                            ? occurrence.modified_color 
+                            : item.color;
+                          
+                          const colorClasses = getColorClasses(displayColor);
+                          const finalClassName = `text-xs ${colorClasses.bgClass} ${colorClasses.textClass} px-1 py-0.5 rounded truncate flex items-center ${
+                            occurrence?.is_modified ? 'ring-1 ring-blue-400' : ''
+                          }`;
+                          
                           return (
                             <div 
                               key={item.id} 
                               className={finalClassName}
-                              title={`${item.title} (${item.start_time || 'All day'})`}
+                              title={`${displayTitle} (${displayTime || 'All day'})${occurrence?.is_modified ? ' - Modified' : ''}`}
                             >
-                              {item.start_time && (
+                              {displayTime && (
                                 <span className="text-xs opacity-75 mr-1">
-                                  {item.start_time.slice(0, 5)}
+                                  {displayTime.slice(0, 5)}
                                 </span>
                               )}
-                              <span className="truncate">{item.title}</span>
+                              <span className="truncate">{displayTitle}</span>
+                              {occurrence?.is_modified && (
+                                <span className="ml-1 text-xs">✏️</span>
+                              )}
                             </div>
                           );
                         })}
@@ -1237,42 +1461,91 @@ const MonthlyView: React.FC<{
                     return timeA - timeB;
                   })
                   .map((item) => {
-                    const colorClasses = getColorClasses(item.color);
+                    // Check if this item has been modified for this date
+                    const occurrenceKey = `${item.id}_${expandedDay?.toISOString().split('T')[0]}`;
+                    const occurrence = scheduler?.occurrences?.[occurrenceKey];
+                    
+                    // Use modified values if they exist
+                    const displayTitle = occurrence?.is_modified && occurrence?.modified_title 
+                      ? occurrence.modified_title 
+                      : item.title;
+                    const displayDescription = occurrence?.is_modified && occurrence?.modified_description 
+                      ? occurrence.modified_description 
+                      : item.description;
+                    const displayStartTime = occurrence?.is_modified && occurrence?.modified_start_time 
+                      ? occurrence.modified_start_time 
+                      : item.start_time;
+                    const displayEndTime = occurrence?.is_modified && occurrence?.modified_end_time 
+                      ? occurrence.modified_end_time 
+                      : item.end_time;
+                    const displayColor = occurrence?.is_modified && occurrence?.modified_color 
+                      ? occurrence.modified_color 
+                      : item.color;
+                    
+                    const colorClasses = getColorClasses(displayColor);
                     return (
                       <div 
                         key={item.id}
-                        className={`border-2 rounded-lg p-4 ${colorClasses.bgClass} border-gray-200 hover:shadow-md transition-shadow`}
+                        className={`border-2 rounded-lg p-4 ${colorClasses.bgClass} border-gray-200 hover:shadow-md transition-shadow ${
+                          occurrence?.is_modified ? 'ring-2 ring-blue-400' : ''
+                        }`}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center space-x-2">
-                                <h4 className="font-semibold text-gray-900">{item.title}</h4>
-                                <div className={`w-3 h-3 rounded-full ${getColorClasses(item.color).swatch}`}></div>
+                                <h4 className="font-semibold text-gray-900">{displayTitle}</h4>
+                                {occurrence?.is_modified && (
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Modified</span>
+                                )}
+                                <div className={`w-3 h-3 rounded-full ${getColorClasses(displayColor).swatch}`}></div>
                               </div>
-                              {/* Delete button - only show if user owns the scheduler or is admin */}
+                              {/* Edit and Delete buttons - only show if user owns the scheduler or is admin */}
                               {(user && (scheduler.user_id === user.id || user.role === 'admin')) && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Set default delete type based on recurrence
-                                    const defaultDeleteType = item.recurrence_type && item.recurrence_type !== 'one-time' ? 'single' : 'all';
-                                    onDeleteItem(item, expandedDay, defaultDeleteType);
-                                  }}
-                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                                  title="Delete item"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (onEditItem && expandedDay) {
+                                        onEditItem(item, expandedDay.toISOString().split('T')[0]);
+                                        setExpandedDay(null);
+                                        setExpandedDayItems([]);
+                                      }
+                                    }}
+                                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
+                                    title="Edit this occurrence"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Set default delete type based on recurrence
+                                      const defaultDeleteType = item.recurrence_type && item.recurrence_type !== 'one-time' ? 'single' : 'all';
+                                      onDeleteItem(item, expandedDay, defaultDeleteType);
+                                    }}
+                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                    title="Delete item"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               )}
                             </div>
-                            <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                            <p className="text-sm text-gray-600 mb-3">{displayDescription}</p>
+                            {occurrence?.notes && (
+                              <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                                <p className="text-sm text-yellow-800">
+                                  <strong>Note:</strong> {occurrence.notes}
+                                </p>
+                              </div>
+                            )}
                             <div className="flex flex-wrap items-center gap-3 text-sm">
                               <div className="flex items-center space-x-1 text-gray-700">
                                 <Clock className="w-4 h-4" />
                                 <span>
-                                  {item.start_time ? formatTime(item.start_time) : 'All day'}
-                                  {item.end_time && ` - ${formatTime(item.end_time)}`}
+                                  {displayStartTime ? formatTime(displayStartTime) : 'All day'}
+                                  {displayEndTime && ` - ${formatTime(displayEndTime)}`}
                                 </span>
                               </div>
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
