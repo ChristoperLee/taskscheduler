@@ -10,10 +10,14 @@ const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
 
+// Determine basename based on environment
+// Use /taskscheduler for production (GitHub Pages), empty string for local development
+const basename = process.env.NODE_ENV === 'production' ? '/taskscheduler' : '';
+
 root.render(
   <React.StrictMode>
     <Provider store={store}>
-      <BrowserRouter basename="/taskscheduler">
+      <BrowserRouter basename={basename}>
         <App />
       </BrowserRouter>
     </Provider>

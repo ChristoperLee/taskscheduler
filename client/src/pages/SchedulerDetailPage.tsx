@@ -1,9 +1,9 @@
 import React, { useEffect, useState, Fragment } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '../store';
-import { fetchSchedulerById } from '../store/slices/schedulerSlice';
-import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid, Clock, Edit, ChevronLeft, ChevronRight, CalendarCheck, X, Filter, ChevronDown } from 'lucide-react';
+import { fetchSchedulerById, updateScheduler } from '../store/slices/schedulerSlice';
+import { Calendar, User, Heart, Share2, Eye, ArrowLeft, CalendarDays, List, Grid, Clock, Edit, ChevronLeft, ChevronRight, CalendarCheck, X, Filter, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import RecurrenceDisplay from '../components/RecurrenceDisplay';
 import { SchedulerItem } from '../types';
@@ -37,11 +37,18 @@ const getColorClasses = (color?: string) => {
 
 const SchedulerDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { currentScheduler, loading } = useSelector((state: RootState) => state.schedulers);
   const { user } = useSelector((state: RootState) => state.auth);
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'list'>('daily');
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    item: SchedulerItem | null;
+    date?: Date;
+    deleteType?: 'single' | 'all';
+  }>({ isOpen: false, item: null });
 
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -359,6 +366,10 @@ const SchedulerDetailPage: React.FC = () => {
             getItemsForDate={getItemsForDate}
             formatTime={formatTime}
             parseTime={parseTime}
+            user={user}
+            onDeleteItem={(item, date, deleteType) => {
+              setDeleteConfirmation({ isOpen: true, item, date, deleteType });
+            }}
           />
         )}
         
@@ -371,6 +382,124 @@ const SchedulerDetailPage: React.FC = () => {
           />
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmation.isOpen && deleteConfirmation.item && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Confirm Deletion</h3>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 mb-2">
+                Are you sure you want to delete <strong>"{deleteConfirmation.item.title}"</strong>?
+              </p>
+              
+              {deleteConfirmation.item.recurrence_type && deleteConfirmation.item.recurrence_type !== 'one-time' && (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800">
+                    <strong>This is a recurring item.</strong> Choose what to delete:
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    <label className="flex items-start space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="deleteType"
+                        value="single"
+                        checked={deleteConfirmation.deleteType === 'single'}
+                        onChange={(e) => setDeleteConfirmation(prev => ({ ...prev, deleteType: 'single' }))}
+                        className="mt-0.5 text-blue-600"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">This occurrence only</span>
+                        {deleteConfirmation.date && (
+                          <span className="block text-xs text-gray-600">
+                            Delete only on {deleteConfirmation.date.toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                    <label className="flex items-start space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="deleteType"
+                        value="all"
+                        checked={deleteConfirmation.deleteType === 'all'}
+                        onChange={(e) => setDeleteConfirmation(prev => ({ ...prev, deleteType: 'all' }))}
+                        className="mt-0.5 text-blue-600"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">All occurrences</span>
+                        <span className="block text-xs text-gray-600">
+                          Delete this item completely
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setDeleteConfirmation({ isOpen: false, item: null })}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const item = deleteConfirmation.item;
+                  const deleteType = deleteConfirmation.deleteType || 'all';
+                  const date = deleteConfirmation.date;
+                  
+                  if (item && currentScheduler) {
+                    if (deleteType === 'single' && date) {
+                      // For single occurrence deletion, we need to create an exclusion
+                      // This would require backend support for exclusion dates
+                      // For now, we'll just remove the item from the current view
+                      console.log('Delete single occurrence:', item.id, 'on', date);
+                      alert('Single occurrence deletion is not yet implemented. This feature requires backend support for exclusion dates.');
+                    } else {
+                      // Delete the entire item
+                      try {
+                        // Remove the item from the scheduler's items
+                        const updatedItems = (currentScheduler.items || []).filter((i: SchedulerItem) => i.id !== item.id);
+                        
+                        // Update the scheduler with the new items list
+                        await dispatch(updateScheduler({
+                          id: String(currentScheduler.id),
+                          data: {
+                            ...currentScheduler,
+                            items: updatedItems
+                          }
+                        })).unwrap();
+                        
+                        // Refresh the scheduler to get updated data
+                        if (id) {
+                          dispatch(fetchSchedulerById(id));
+                        }
+                      } catch (error) {
+                        console.error('Failed to delete item:', error);
+                        alert('Failed to delete the item. Please try again.');
+                      }
+                    }
+                  }
+                  
+                  setDeleteConfirmation({ isOpen: false, item: null });
+                }}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                {deleteConfirmation.deleteType === 'single' ? 'Delete This Occurrence' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -612,7 +741,9 @@ const MonthlyView: React.FC<{
   getItemsForDate: (date: Date) => SchedulerItem[];
   formatTime: (time: string) => string;
   parseTime: (time: string) => number;
-}> = ({ scheduler, selectedDate, setSelectedDate, daysOfWeek, getItemsForDate, formatTime, parseTime }) => {
+  user: any;
+  onDeleteItem: (item: SchedulerItem, date?: Date, deleteType?: 'single' | 'all') => void;
+}> = ({ scheduler, selectedDate, setSelectedDate, daysOfWeek, getItemsForDate, formatTime, parseTime, user, onDeleteItem }) => {
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth();
   
@@ -1084,9 +1215,26 @@ const MonthlyView: React.FC<{
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <h4 className="font-semibold text-gray-900">{item.title}</h4>
-                              <div className={`w-3 h-3 rounded-full ${getColorClasses(item.color).swatch}`}></div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2">
+                                <h4 className="font-semibold text-gray-900">{item.title}</h4>
+                                <div className={`w-3 h-3 rounded-full ${getColorClasses(item.color).swatch}`}></div>
+                              </div>
+                              {/* Delete button - only show if user owns the scheduler or is admin */}
+                              {(user && (scheduler.user_id === user.id || user.role === 'admin')) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Set default delete type based on recurrence
+                                    const defaultDeleteType = item.recurrence_type && item.recurrence_type !== 'one-time' ? 'single' : 'all';
+                                    onDeleteItem(item, expandedDay, defaultDeleteType);
+                                  }}
+                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                  title="Delete item"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                             <p className="text-sm text-gray-600 mb-3">{item.description}</p>
                             <div className="flex flex-wrap items-center gap-3 text-sm">
