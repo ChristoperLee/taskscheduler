@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '../store';
@@ -10,15 +10,35 @@ const HomePage: React.FC = () => {
   const dispatch = useAppDispatch();
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   const { schedulers, loading } = useSelector((state: RootState) => state.schedulers);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    dispatch(fetchPopularSchedulers(6));
+    dispatch(fetchPopularSchedulers(6))
+      .unwrap()
+      .catch((error) => {
+        console.error('Failed to fetch schedulers:', error);
+        setLoadError('Unable to load schedulers. Please try again later.');
+      });
   }, [dispatch]);
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
         <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-64 space-y-4">
+        <p className="text-red-600">{loadError}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="btn btn-primary"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -70,8 +90,8 @@ const HomePage: React.FC = () => {
               <div key={scheduler.id} className="card hover:shadow-md transition-shadow">
                 <div className="card-body">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 break-words">
                         {scheduler.title}
                       </h3>
                     </div>
@@ -80,34 +100,43 @@ const HomePage: React.FC = () => {
                     </span>
                   </div>
                   
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                    {scheduler.description}
+                  <p className="text-gray-600 text-sm mb-4 line-clamp-2 break-words">
+                    {scheduler.description || 'No description available'}
                   </p>
                   
                   <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
                     <div className="flex items-center space-x-1">
-                      <User className="w-4 h-4" />
-                      <span>{scheduler.creator_name}</span>
+                      <User className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{scheduler.creator_name || 'Unknown'}</span>
                     </div>
                     <div className="flex items-center space-x-1">
-                      <Clock className="w-4 h-4" />
-                      <span>{new Date(scheduler.created_at).toLocaleDateString()}</span>
+                      <Clock className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">
+                        {scheduler.created_at 
+                          ? new Date(scheduler.created_at).toLocaleDateString('en-US', { 
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })
+                          : 'N/A'
+                        }
+                      </span>
                     </div>
                   </div>
                   
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4 text-sm text-gray-500">
                       <div className="flex items-center space-x-1">
-                        <Eye className="w-4 h-4" />
-                        <span>{scheduler.usage_count}</span>
+                        <Eye className="w-4 h-4 flex-shrink-0" />
+                        <span>{scheduler.usage_count || 0}</span>
                       </div>
                       <div className="flex items-center space-x-1">
-                        <Heart className="w-4 h-4" />
-                        <span>{scheduler.like_count}</span>
+                        <Heart className="w-4 h-4 flex-shrink-0" />
+                        <span>{scheduler.like_count || 0}</span>
                       </div>
                       <div className="flex items-center space-x-1">
-                        <Share2 className="w-4 h-4" />
-                        <span>{scheduler.share_count}</span>
+                        <Share2 className="w-4 h-4 flex-shrink-0" />
+                        <span>{scheduler.share_count || 0}</span>
                       </div>
                     </div>
                     

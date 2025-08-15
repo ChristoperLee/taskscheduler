@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from './store';
 import { getCurrentUser } from './store/slices/authSlice';
+import { initializeCompatibility } from './utils/browserCompat';
 
 // Components
 import Header from './components/Header';
@@ -36,6 +37,9 @@ function App() {
   const { isAuthenticated, loading } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
+    // Initialize browser compatibility checks
+    initializeCompatibility();
+    
     // Check if user is authenticated on app load
     if (isAuthenticated) {
       dispatch(getCurrentUser());

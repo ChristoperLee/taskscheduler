@@ -1,0 +1,118 @@
+/* OS-specific styling fixes */
+
+/* Windows-specific fixes */
+.os-windows {
+  /* Fix font rendering on Windows */
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+}
+
+.os-windows body {
+  /* Improve text rendering on Windows */
+  text-rendering: geometricPrecision;
+}
+
+.os-windows .btn {
+  /* Fix button rendering on Windows */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Fix scrollbar styling on Windows */
+.os-windows ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.os-windows ::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 6px;
+}
+
+.os-windows ::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 6px;
+}
+
+.os-windows ::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* macOS-specific fixes */
+.os-macos {
+  /* Use native macOS font smoothing */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Linux-specific fixes */
+.os-linux {
+  /* Optimize font rendering for Linux */
+  text-rendering: optimizeLegibility;
+}
+
+/* Fallback for line-clamp when not supported */
+.no-line-clamp .line-clamp-1 {
+  max-height: 1.5em;
+  overflow: hidden;
+  position: relative;
+}
+
+.no-line-clamp .line-clamp-2 {
+  max-height: 3em;
+  overflow: hidden;
+  position: relative;
+}
+
+.no-line-clamp .line-clamp-3 {
+  max-height: 4.5em;
+  overflow: hidden;
+  position: relative;
+}
+
+.no-line-clamp .line-clamp-1::after,
+.no-line-clamp .line-clamp-2::after,
+.no-line-clamp .line-clamp-3::after {
+  content: '...';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  padding-left: 20px;
+  background: linear-gradient(to right, transparent, white 20px);
+}
+
+/* Fix flexbox issues on older browsers */
+@supports not (display: flex) {
+  .flex {
+    display: table;
+    width: 100%;
+  }
+  
+  .flex > * {
+    display: table-cell;
+  }
+}
+
+/* Fix grid issues on older browsers */
+@supports not (display: grid) {
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  
+  .grid > * {
+    flex: 1 1 300px;
+    margin: 0.5rem;
+  }
+}
+
+/* High contrast mode support for Windows */
+@media (prefers-contrast: high) {
+  .btn {
+    border: 2px solid currentColor;
+  }
+  
+  .card {
+    border: 2px solid currentColor;
+  }
+}
