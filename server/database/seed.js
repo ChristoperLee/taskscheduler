@@ -18,8 +18,13 @@ const seedData = async () => {
 
     const userIds = [];
     for (const user of users) {
+      // Use ON CONFLICT to handle duplicates
       const result = await query(
-        'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id',
+        `INSERT INTO users (username, email, password_hash) 
+         VALUES ($1, $2, $3) 
+         ON CONFLICT (username) DO UPDATE 
+         SET email = EXCLUDED.email
+         RETURNING id`,
         [user.username, user.email, user.password]
       );
       userIds.push(result.rows[0].id);
