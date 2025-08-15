@@ -32,14 +32,26 @@ const allowedOrigins = [
   'https://taskscheduler-production.up.railway.app'
 ];
 
+// Add your local network IP for cross-device testing
+const localIP = process.env.LOCAL_IP || '192.168.1.100'; // Replace with your Mac's IP
+allowedOrigins.push(`http://${localIP}:3000`);
+allowedOrigins.push(`http://${localIP}:5001`);
+
 if (process.env.CORS_ORIGIN) {
   allowedOrigins.push(process.env.CORS_ORIGIN);
 }
 
+// More permissive CORS for production debugging
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
+    
+    // For production, be more permissive while debugging
+    if (process.env.NODE_ENV === 'production') {
+      console.log('Allowing origin in production:', origin);
+      return callback(null, true);
+    }
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -50,18 +62,40 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Handle OPTIONS requests explicitly
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(204);
+});
+
+// Add root endpoint for Railway
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'TaskScheduler API',
+    status: 'OK',
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV 
+    environment: process.env.NODE_ENV,
+    cors: 'enabled'
   });
 });
 
